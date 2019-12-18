@@ -124,6 +124,16 @@ def get_1st_cloud_base_idx(cb_first_ts, range_list):
     return np.array(idx_1st_cloud_base)
 
 def get_temp_lines(temperatures, rg_list, isoTemp):
+    """Extracts the index, temperaure and range for a specific isotherm.
+
+    Args:
+        - temperature (np.array): 2D array containing temperature values, dimensions: time-range
+        - rg_list (list): list of range values
+        - isoTemp (integer): temperature in °C
+
+    Return:
+        - (dict): containing index, temperature and range of isotherm
+    """
     idx_list, temp_list, range_list = [], [], []
     for iT in range(temperatures.shape[1]):
         idx, val = next(((idx, temp) for idx, temp in enumerate(temperatures[:, iT]) if temp < isoTemp), np.nan)
@@ -168,11 +178,168 @@ def get_combined_liquid_mask(classification, categories, liq_pred_mask, cloudnet
 
 
 def sum_liquid_layer_thickness_per_category(categories, cloudnet_liq_mask, ann_liquid_mask, combi_mask_liq, rg_res=30.0):
+    """Calculating the liquid layer thickness of the total vertical column"""
     sum_ts = {i+1: np.nansum(imask*1.0, axis=0)*rg_res for i, imask in enumerate(categories[1:])}
     sum_ts.update({itemp: np.count_nonzero(ival, axis=0)*rg_res for itemp, ival in combi_mask_liq.items()})
     sum_ts.update({'cloudnet': np.nansum(cloudnet_liq_mask*1.0, axis=0)*rg_res})
     sum_ts.update({'neuralnet': np.nansum(ann_liquid_mask*1.0, axis=0)*rg_res})
     return sum_ts
+
+def init_nan_array(shape):
+    """ Generates an numpy array of dimension 'shape' filled with NaN values.
+
+    Args:
+        - shape (tuple): dimensions of the nan array
+
+    Return:
+        - nan array (np.array): nan array of dimension 'shape'
+    """
+    return np.full(shape, fill_value=np.nan)
+
+def findBasesTops(dbz_m, range_v):
+    """Find cloud bases and tops from radar reflectivity profiles for up to 10 cloud layers no cloud = NaN.
+
+    Args:
+        dbz_m (np.array): reflectivity matrix [dbz] (range x time)
+        range_v (list): radar height vector [m or km] (range)
+
+    Returns:
+        bases (np.array): matrix of indices (idx) of cloud bases  (10 x time)
+        tops (np.array): matrix of indices (idx) of cloud tops   (10 x time)
+        base_m (np.array): matrix of heights of cloud bases  [m or km, same unit as range] (10 x time), 1st base = -1 means no cloud detected
+        top_m (np.array): matrix of heights of cloud tops   [m or km, same unit as range] (10 x time), 1st top  = -1 means no cloud detected
+        thickness (np.array): matrix of cloud thickness         [m or km, same unit as range] (10 x time)
+    """
+
+    shape_dbz = dbz_m.shape
+    len_time  = shape_dbz[1]
+    len_range = len(range_v)
+
+    bases     = init_nan_array((10, len_time))
+    tops      = init_nan_array((10, len_time))
+    top_m     = init_nan_array((10, len_time))  # max. 10 cloud layers detected
+    base_m    = init_nan_array((10, len_time))  # max. 10 cloud layers detected
+    thickness = init_nan_array((10, len_time))
+
+    for i in range(0, len_time):
+
+        in_cloud = 0
+        layer_idx = 0
+        current_base = np.nan
+
+        #print("    Searching for cloud bottom and top ({} of {}) time steps".format(i + 1, len_time), end="\r")
+
+        # found the first base in first bin.
+        if not np.isnan(dbz_m[0, i]):
+            layer_idx = 1
+            current_base = 1
+            in_cloud = 1
+
+        for j in range(1, len_range):
+
+            if in_cloud == 1:  # if in cloud
+
+                # cloud top found at (j-1)
+                if np.isnan(dbz_m[j, i]):
+                    current_top = j - 1
+                    thickness[layer_idx, i] = range_v[current_top] - range_v[current_base]
+                    bases[layer_idx, i] = current_base  # bases is an idx
+                    tops[layer_idx, i] = current_top  # tops is an idx
+
+                    base_m[layer_idx, i] = range_v[current_base]  # cloud base in m or km
+                    top_m[layer_idx, i] = range_v[current_top]  # cloud top in m or km
+
+                    print(str(i) + ': found ' + str(layer_idx) + '. cloud [' + str(bases[layer_idx, i]) + ', ' +
+                          str(tops[layer_idx, i]) + '], thickness: ' + str(thickness) + 'km')
+
+                    in_cloud = 0
+
+            else:  # if not in cloud
+
+                # cloud_base found at j
+                if not np.isnan(dbz_m[j, i]):
+                    layer_idx += 1
+                    current_base = j
+                    in_cloud = 1
+
+        # at top height but still in cloud, force top
+        if in_cloud == 1:
+            tops[layer_idx, i]  = len(range_v)
+            top_m[layer_idx, i] = max(range_v)  # cloud top in m or km
+
+    ###
+    # keep only first 10 cloud layers
+    bases = bases[:10, :]
+    tops = tops[:10, :]
+    base_m = base_m[:10, :]
+    top_m = top_m[:10, :]
+    thickness = thickness[:10, :]
+    # give clear sky flag when first base_m ==NaN (no dbz detected over all heights),
+    # problem: what if radar wasn't working, then dbz would still be NaN!
+    loc_nan = np.where(np.isnan(base_m[0, :]))
+
+    base_m[0, np.where(np.isnan(base_m[0, :]))] = -1
+    top_m[0, np.where(np.isnan(top_m[0, :]))] = -1
+
+    return bases, tops, base_m, top_m, thickness
+
+def wrapper(mat_data, var_name='', var_unit=''):
+    """Wrap a larda container around .mat file data to use the pyLARDA.Transformations library .
+
+    Args:
+        container (.mat) : Matlab .mat file datad
+
+    Return:
+        container (dict) : sliced container
+    """
+    assert isinstance(var_name, str) and len(var_name) > 0, 'Error utility.wrapper! Check var_name argument!'
+
+    time_var, range_var, system = '', '', ''
+    name = var_name
+    colormap = 'jet'
+    if 'ts_class_time' in mat_data.keys():     # set variable lists for cloudnet classification dict
+        time_var, range_var = 'ts_class_time', 'h_class'
+        system = 'cloudnet-classification'
+        name = 'CLASS'
+        colormap = 'cloudnet_target_new'
+    elif 'ts_cat_time' in mat_data.keys():     # set variable lists for cloudnet categorization dict
+        time_var, range_var = 'ts_cat_time', 'h_cat'
+        system = 'cloudnet-categorization'
+    elif 'ts_polly_time' in mat_data.keys():     # set variable lists for PollyXT dict
+        time_var, range_var = 'ts_polly_time', 'h_class'
+    elif 'ts_NN_time' in mat_data.keys():     # set variable lists for predicted Ed Luke ANN prediction dict
+        time_var, range_var = 'ts_NN_time', 'h_class'
+    elif 'ts_sp_time' in mat_data.keys():     # set variable lists for Mira Doppler radar dict
+        time_var, range_var = 'ts_sp_time', 'h_class'
+        system = 'mira'
+    elif 'ts_rs_time' in mat_data.keys():     # set variable lists for radiosonde dict
+        time_var, range_var = 'ts_rs_time', 'h_rs'
+        system = 'radio-sonde'
+
+    var = mat_data[var_name].T
+    if len(var.shape) == 2:
+        dimlabel = ['time', 'range']
+    elif len(var.shape) == 1:
+        dimlabel = ['time']
+    else:
+        raise ValueError('Variable must be 1D or 2D!')
+
+    larda_container = {'dimlabel': dimlabel,
+                       'filename': 'accept .mat file',
+                       'paraminfo': {},
+                       'rg_unit': 'm',
+                       'colormap': colormap,
+                       'var_unit': var_unit,
+                       'var_lims': [np.min(var), np.max(var)],
+                       'system': system,
+                       'name': name,
+                       'rg': np.array(mat_data[range_var]),
+                       'ts': np.array(mat_data[time_var]),
+                       'mask': np.isnan(var),
+                       'var': var}
+
+    return larda_container
+
 
 #function [idx, hgt]= extract_temp_lines(ia_T_mod_ts, height, isoTemp)
 #tmp = find(ia_T_mod_ts < isoTemp, 1, 'first');

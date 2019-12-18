@@ -19,7 +19,7 @@ from accept_analyser.utility import get_1st_cloud_base_idx
 os.environ['KMP_WARNINGS'] = 'off'
 sys.path.append('../larda/')
 
-#import pyLARDA
+import pyLARDA
 import pyLARDA.helpers as h
 
 from utility import *
@@ -50,15 +50,16 @@ __status__      = "Prototype"
 oct_cases = 'accept_cases_oct.csv'
 nov_cases = 'accept_cases_nov.csv'
 
-PLOTS_PATH = './plots/'
 BASE_DIR   = '/media/sdig/LACROS/cloudnet/data/accept/matfiles/timeseries/'
+PLOTS_PATH = f'{__file__[:__file__.rfind("/")+1]}plots/'
 
 lidar_box_thresh = {'Luke':     {'bsc': -4.45, 'dpl': -7.422612476299660e-01},
                     'deBoer':   {'bsc': -4.3,  'dpl': -1.208620483882601e+00},
                     'Shupe':    {'bsc': -4.3,  'dpl': -6.532125137753436e-01},
                     'Cloudnet': {'bsc': -4.3,  'dpl': 20.000000000000000e+00},
-                    'Willi':    {'bsc': -5.2,  'dpl': -6.532125137753436e-01},
-                    'linear':   {'slope': 10,  'intersection': -6}}
+                    'Willi':    {'bsc': -5.2,  'dpl': -6.532125137753436e-01}}
+
+lidar_lin_thresh = {'linear':   {'slope': 10,  'intersection': -6}}
 
 isotherm_list = [0, -10, -25, -38]
 
@@ -73,6 +74,8 @@ do_read_GDAS1          = 0
 
 do_smooth_NNoutput     = 1
 span_smoo_NNout        = 5
+
+plot_target_classification = True
 
 if __name__ == '__main__':
 
@@ -111,7 +114,7 @@ if __name__ == '__main__':
             begin_dt, end_dt = case['begin_dt'], case['end_dt']
 
             # create directory for plots
-            h.change_dir(os.path.join(PLOTS_PATH + f'case_study_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}/'))
+            h.change_dir(f'{PLOTS_PATH}case_study_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}/')
 
             # find indices for slicing
             rg_start_val, rg_end_val = case['plot_range']
@@ -132,6 +135,7 @@ if __name__ == '__main__':
             hsrl_pred       = time_height_slicer(hsrl_pred,        [ts_start_idx, ts_end_idx], [rg_start_idx, rg_end_idx]) if do_read_lipred         else None
             mira_moments    = time_height_slicer(mira_moments,     [ts_start_idx, ts_end_idx], [rg_start_idx, rg_end_idx]) if do_read_mira_spec_mom  else None
             radiosondes     = time_height_slicer(radiosondes,      [ts_start_idx, ts_end_idx], [rg_start_idx, rg_end_idx]) if do_read_sounding       else None
+
 
             # add indices of first cloud base to classification dict
             if do_read_cloudnet_class:
@@ -160,7 +164,7 @@ if __name__ == '__main__':
 
                 # remove all pxl below ceilo base (rain!)
                 for iT in range(n_ts_class):
-                    idx = classification['first_cb_idx'][iT] if not np.isnan(classification['first_cb_idx'][iT]) else None
+                    idx = classification['first_cb_idx'][iT] if not np.isnan(classification['first_cb_idx'][iT]) else 0
                     ann_liquid_mask[:idx, iT] = 0
 
             if do_read_cloudnet_class:
@@ -198,5 +202,14 @@ if __name__ == '__main__':
 
                 sum_ll_thickness = sum_liquid_layer_thickness_per_category(categories, cloudnet_liq_mask, ann_liquid_mask, combi_mask_liq, rg_res=30.0)
 
+
+
+            # plotting section
+            if plot_target_classification:
+                fig_name = f'CLASS_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT.png'
+                fig, ax = pyLARDA.Transformations.plot_timeheight(wrapper(classification, var_name='target_class_ts', var_unit='-'),
+                                                                  range_interval=case['plot_range'], fig_size=[10, 7])
+                fig.savefig(fig_name)
+                print(f'Figure saved :: {fig_name}')
 
                 dummy=5
