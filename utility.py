@@ -2,11 +2,23 @@ import pandas
 import datetime
 import numpy as np
 import sys
+import time
+
+from scipy.io import loadmat
+from numba import jit
 
 sys.path.append('../larda/')
 import pyLARDA.helpers as h
+import logging
 
+logger = logging.getLogger(__name__)
 
+def load_dot_mat_file(path, string):
+    t0 = time.time()
+    data = loadmat(path)
+    logger.info(f'Loading {string} data took {datetime.timedelta(seconds=int(time.time() - t0))} [hour:min:sec]')
+    return data
+    
 def cases_from_csv(data_loc, **kwargs):
     """This function extracts information from an excel sheet. It can be used for different scenarios.
     The first row of the excel sheet contains the headline, defined as follows:
@@ -36,7 +48,13 @@ def cases_from_csv(data_loc, **kwargs):
 def datenum2datetime(dn):
     """Converting Matlab datenum to Python datetime format.
     """
-    return datetime.datetime.fromordinal(int(dn)) - datetime.timedelta(days=366)
+    return datetime.datetime.fromordinal(int(dn) - 366) + datetime.timedelta(days=dn % 1)
+
+
+def since2001_to_dt(s):
+    """seconds since 2001-01-01 to datetime"""
+    # return (dt - datetime.datetime(1970, 1, 1)).total_seconds()
+    return datetime.datetime(2001, 1, 1) + datetime.timedelta(seconds=s)
 
 
 def datetime2datenum(dt):
@@ -45,6 +63,11 @@ def datetime2datenum(dt):
     mdn = dt + datetime.timedelta(days=366)
     frac = (dt - datetime.datetime(dt.year, dt.month, dt.day, 0, 0, 0)).seconds / (24.0 * 60.0 * 60.0)
     return mdn.toordinal() + frac
+
+
+def toC(datalist):
+    return datalist[0]['var'], datalist[0]['mask']
+
 
 def time_height_slicer(container, ts_bound, rg_bound):
     """Routine for slicing along time and range dimension for case studies.
@@ -62,32 +85,32 @@ def time_height_slicer(container, ts_bound, rg_bound):
     assert rg_bound[0] != rg_bound[1], 'slicing failed, range boundaries wrong'
 
     var1D_time_list, var1D_range_list, var2D_list = [], [], []
-    if 'ts_class_time' in container.keys():     # set variable lists for cloudnet classification dict
-        var1D_time_list  = ['cb_first_ts', 'ct_last_ts', 'ts_class_time']
+    if 'ts_class_time' in container.keys():  # set variable lists for cloudnet classification dict
+        var1D_time_list = ['cb_first_ts', 'ct_last_ts', 'ts_class_time']
         var1D_range_list = ['h_class']
-        var2D_list       = ['detect_status_ts', 'target_class_ts']
-    elif 'ts_cat_time' in container.keys():     # set variable lists for cloudnet categorization dict
-        var1D_time_list  = ['lwp_ts', 'rainrate_ts', 'ts_cat_time']
+        var2D_list = ['detect_status_ts', 'target_class_ts']
+    elif 'ts_cat_time' in container.keys():  # set variable lists for cloudnet categorization dict
+        var1D_time_list = ['lwp_ts', 'rainrate_ts', 'ts_cat_time']
         var1D_range_list = ['h_cat']
-        var2D_list       = ['T_mod_ts', 'Vd_cc_ts', 'Ze_cc_ts', 'att_bscatt_ts', 'ldr_cc_ts', 'p_mod_ts', 'rh_mod_ts', 'theta_mod_ts',
-                            'wdir_mod_ts', 'width_cc_ts', 'winddirshear_mod_ts', 'windspdshear_mod_ts', 'wspd_mod_ts']
-    elif 'ts_polly_time' in container.keys():     # set variable lists for PollyXT dict
-        var1D_time_list  = ['ts_polly_time']
+        var2D_list = ['T_mod_ts', 'Vd_cc_ts', 'Ze_cc_ts', 'att_bscatt_ts', 'ldr_cc_ts', 'p_mod_ts', 'rh_mod_ts', 'theta_mod_ts',
+                      'wdir_mod_ts', 'width_cc_ts', 'winddirshear_mod_ts', 'windspdshear_mod_ts', 'wspd_mod_ts']
+    elif 'ts_polly_time' in container.keys():  # set variable lists for PollyXT dict
+        var1D_time_list = ['ts_polly_time']
         var1D_range_list = ['h_class']
-        var2D_list       = ['bsc_polly_ts', 'bsc_polly_woAI_ts', 'dpol_polly_ts', 'dpol_polly_woAI_ts']
-    elif 'ts_NN_time' in container.keys():     # set variable lists for predicted Ed Luke ANN prediction dict
-        var1D_time_list  = ['ts_NN_time']
+        var2D_list = ['bsc_polly_ts', 'bsc_polly_woAI_ts', 'dpol_polly_ts', 'dpol_polly_woAI_ts']
+    elif 'ts_NN_time' in container.keys():  # set variable lists for predicted Ed Luke ANN prediction dict
+        var1D_time_list = ['ts_NN_time']
         var1D_range_list = ['h_class']
-        var2D_list       = ['CDR_NN_ts', 'bsc_NN_ts', 'dpol_NN_ts']
-    elif 'ts_sp_time' in container.keys():     # set variable lists for Mira Doppler radar dict
-        var1D_time_list  = ['ts_sp_time']
+        var2D_list = ['CDR_NN_ts', 'bsc_NN_ts', 'dpol_NN_ts']
+    elif 'ts_sp_time' in container.keys():  # set variable lists for Mira Doppler radar dict
+        var1D_time_list = ['ts_sp_time']
         var1D_range_list = ['h_class']
-        var2D_list       = ['Vd_sp_ts', 'Ze_cc_ts', 'kurt_smoo_ts', 'ldr_cor_sp_ts', 'le_peak1_sp_ts', 'left_edge_sp_ts', 'ls_peak1_smoo_ts',
-                            'peak1_loc_sp_ts',  're_peak1_sp_ts', 'right_edge_sp_ts', 'rs_peak1_smoo_ts', 'skew_smoo_ts',  'width_sp_ts']
-    elif 'ts_rs_time' in container.keys():     # set variable lists for radiosonde dict
-        var1D_time_list  = ['ts_rs_time']
+        var2D_list = ['Vd_sp_ts', 'Ze_cc_ts', 'kurt_smoo_ts', 'ldr_cor_sp_ts', 'le_peak1_sp_ts', 'left_edge_sp_ts', 'ls_peak1_smoo_ts',
+                      'peak1_loc_sp_ts', 're_peak1_sp_ts', 'right_edge_sp_ts', 'rs_peak1_smoo_ts', 'skew_smoo_ts', 'width_sp_ts']
+    elif 'ts_rs_time' in container.keys():  # set variable lists for radiosonde dict
+        var1D_time_list = ['ts_rs_time']
         var1D_range_list = ['h_rs']
-        var2D_list       = ['rh_rs_ts', 'T_rs_ts', 'TD_rs_ts']
+        var2D_list = ['rh_rs_ts', 'T_rs_ts', 'TD_rs_ts']
 
     assert len(var1D_range_list) > 0, 'slicing failed, unknown container'
 
@@ -103,6 +126,7 @@ def time_height_slicer(container, ts_bound, rg_bound):
         container[ivar] = container[ivar][rg_bound[0]:rg_bound[1], ts_bound[0]:ts_bound[1]]
 
     return container
+
 
 def get_1st_cloud_base_idx(cb_first_ts, range_list):
     """Extract the indices of the first cloud base.
@@ -123,6 +147,7 @@ def get_1st_cloud_base_idx(cb_first_ts, range_list):
 
     return np.array(idx_1st_cloud_base)
 
+
 def get_temp_lines(temperatures, rg_list, isoTemp):
     """Extracts the index, temperaure and range for a specific isotherm.
 
@@ -136,54 +161,57 @@ def get_temp_lines(temperatures, rg_list, isoTemp):
     """
     idx_list, temp_list, range_list = [], [], []
     for iT in range(temperatures.shape[1]):
-        idx, val = next(((idx, temp) for idx, temp in enumerate(temperatures[:, iT]) if temp < isoTemp), np.nan)
+        idx, val = next(((idx, temp) for idx, temp in enumerate(temperatures[:, 0]) if temp < isoTemp), (None, np.nan))
         idx_list.append(idx)
         temp_list.append(val)
         range_list.append(rg_list[idx])
 
     return {'idx': np.array(idx_list), 'temp': np.array(temp_list), 'rg': np.array(range_list)}
 
-def get_combined_liquid_mask(classification, categories, liq_pred_mask, cloudnet_liq_mask, isotherm_lines):
-    combi_mask_liq = {'tot': np.zeros(classification['target_class_ts'].shape, dtype=np.int)}
-    combi_mask_liq['tot'][liq_pred_mask * cloudnet_liq_mask] = 1  # pixel classified as liquid in both
-    combi_mask_liq['tot'][liq_pred_mask * ~cloudnet_liq_mask] = 2  # pixel classified as liquid by NN only
-    combi_mask_liq['tot'][~liq_pred_mask * cloudnet_liq_mask] = 3  # pixel classified as liquid by Cloudnet only
 
-    # set pxl for which NN predicted liquid but which Cloudnet classifies as insects / aerosols to NaN
-    tot_nnz = np.count_nonzero(combi_mask_liq['tot'])
-    print(f'nr. of pxl where Cloudnet and/or NN classify liquid before aerosol/insect removal  : {tot_nnz}')
+def get_indices(categories, cat_list):
+    if len(cat_list) == 1:
+        return categories[cat_list[0]]
+    elif len(cat_list) > 1:
+        return np.logical_or.reduce(tuple(categories[icat] for icat in cat_list))
 
-    combi_mask_liq['tot'][np.logical_or.reduce((categories[8], categories[9], categories[10]))] = 0
-    tot_nnz = np.count_nonzero(combi_mask_liq['tot'])
-    print(f'nr. of pxl where Cloudnet and/or NN classify liquid after aerosol removal          : {tot_nnz}')
 
-    key, val = np.unique(combi_mask_liq['tot'], return_counts=True)
-    combi_mask_counts = {0: 0, 1: 0, 2: 0, 3: 0}
-    combi_mask_counts.update(zip(key, val))
+def get_combined_liquid_mask(liq_pred_mask, cloudnet_liq_mask):
+    """Return an 2D integer array, specifying the location in time and height, where liquid cloud droplets orruce.
+        0   ...     no signal
+        1   ...     Cloudnet and the NN detected liquid
+        2   ...     liquid detected by the NN only
+        3   ...     liquid detected by the Cloudnet only
 
-    print('\n----- (comparison of amount of pxl classified as liquid by Cloudnet or NN output) --------')
-    print(f'percentage of overlapping pxl where NN + Cloudnet detect liquid      : {combi_mask_counts[1] * 100 / tot_nnz:.2f}')
-    print(f'percentage of overlapping pxl where ONLY NN predicts liquid          : {combi_mask_counts[2] * 100 / tot_nnz:.2f}')
-    print(f'percentage of overlapping pxl where ONLY Cloudnet determines liquid  : {combi_mask_counts[3] * 100 / tot_nnz:.2f}')
-
-    # remove liquid pixel below certain temperatures
-    for key, val in isotherm_lines.items():
-        if not np.isnan(val['idx']).any():
-            tmp_mask = combi_mask_liq['tot'].copy()
-            for iT in range(tmp_mask.shape[1]):
-                tmp_mask[val['idx'][iT]:, iT] = 0
-            combi_mask_liq.update({key: tmp_mask})
+        Args:
+            liq_pred_mask (array, bool) : 2D array in time and height where True values represent liquid pixel from lidar prediction
+            cloudnet_liq_mask (array, bool) : 2D array in time and height where True values represent liquid pixel from Cloudnet
+    """
+    combi_mask_liq = np.zeros(liq_pred_mask.shape, dtype=np.int)
+    combi_mask_liq[np.logical_and(liq_pred_mask,  cloudnet_liq_mask)] = 1  # pixel classified as liquid in both
+    combi_mask_liq[np.logical_and(liq_pred_mask, ~cloudnet_liq_mask)] = 2  # pixel classified as liquid by NN only
+    combi_mask_liq[np.logical_and(~liq_pred_mask, cloudnet_liq_mask)] = 3  # pixel classified as liquid by Cloudnet only
 
     return combi_mask_liq
+
+@jit()
+def mask_below_temperature(mask_copy, isotherm):
+    # remove liquid pixel below certain temperatures
+    if isotherm['idx'].any() is not None:
+        for iT in range(mask_copy.shape[1]):
+            if isotherm['idx'][iT] is not None:
+                mask_copy[isotherm['idx'][iT]:, iT] = False
+    return mask_copy
 
 
 def sum_liquid_layer_thickness_per_category(categories, cloudnet_liq_mask, ann_liquid_mask, combi_mask_liq, rg_res=30.0):
     """Calculating the liquid layer thickness of the total vertical column"""
-    sum_ts = {i+1: np.nansum(imask*1.0, axis=0)*rg_res for i, imask in enumerate(categories[1:])}
-    sum_ts.update({itemp: np.count_nonzero(ival, axis=0)*rg_res for itemp, ival in combi_mask_liq.items()})
-    sum_ts.update({'cloudnet': np.nansum(cloudnet_liq_mask*1.0, axis=0)*rg_res})
-    sum_ts.update({'neuralnet': np.nansum(ann_liquid_mask*1.0, axis=0)*rg_res})
+    sum_ts = {i + 1: np.nansum(imask * 1.0, axis=0) * rg_res for i, imask in enumerate(categories[1:])}
+    sum_ts.update({itemp: np.count_nonzero(ival, axis=0) * rg_res for itemp, ival in combi_mask_liq.items()})
+    sum_ts.update({'cloudnet': np.nansum(cloudnet_liq_mask * 1.0, axis=0) * rg_res})
+    sum_ts.update({'neuralnet': np.nansum(ann_liquid_mask * 1.0, axis=0) * rg_res})
     return sum_ts
+
 
 def init_nan_array(shape):
     """ Generates an numpy array of dimension 'shape' filled with NaN values.
@@ -195,6 +223,7 @@ def init_nan_array(shape):
         - nan array (np.array): nan array of dimension 'shape'
     """
     return np.full(shape, fill_value=np.nan)
+
 
 def findBasesTops(dbz_m, range_v):
     """Find cloud bases and tops from radar reflectivity profiles for up to 10 cloud layers no cloud = NaN.
@@ -212,13 +241,13 @@ def findBasesTops(dbz_m, range_v):
     """
 
     shape_dbz = dbz_m.shape
-    len_time  = shape_dbz[1]
+    len_time = shape_dbz[1]
     len_range = len(range_v)
 
-    bases     = init_nan_array((10, len_time))
-    tops      = init_nan_array((10, len_time))
-    top_m     = init_nan_array((10, len_time))  # max. 10 cloud layers detected
-    base_m    = init_nan_array((10, len_time))  # max. 10 cloud layers detected
+    bases = init_nan_array((10, len_time))
+    tops = init_nan_array((10, len_time))
+    top_m = init_nan_array((10, len_time))  # max. 10 cloud layers detected
+    base_m = init_nan_array((10, len_time))  # max. 10 cloud layers detected
     thickness = init_nan_array((10, len_time))
 
     for i in range(0, len_time):
@@ -227,7 +256,7 @@ def findBasesTops(dbz_m, range_v):
         layer_idx = 0
         current_base = np.nan
 
-        #print("    Searching for cloud bottom and top ({} of {}) time steps".format(i + 1, len_time), end="\r")
+        # logger.info("    Searching for cloud bottom and top ({} of {}) time steps".format(i + 1, len_time), end="\r")
 
         # found the first base in first bin.
         if not np.isnan(dbz_m[0, i]):
@@ -249,7 +278,7 @@ def findBasesTops(dbz_m, range_v):
                     base_m[layer_idx, i] = range_v[current_base]  # cloud base in m or km
                     top_m[layer_idx, i] = range_v[current_top]  # cloud top in m or km
 
-                    print(str(i) + ': found ' + str(layer_idx) + '. cloud [' + str(bases[layer_idx, i]) + ', ' +
+                    logger.info(str(i) + ': found ' + str(layer_idx) + '. cloud [' + str(bases[layer_idx, i]) + ', ' +
                           str(tops[layer_idx, i]) + '], thickness: ' + str(thickness) + 'km')
 
                     in_cloud = 0
@@ -264,7 +293,7 @@ def findBasesTops(dbz_m, range_v):
 
         # at top height but still in cloud, force top
         if in_cloud == 1:
-            tops[layer_idx, i]  = len(range_v)
+            tops[layer_idx, i] = len(range_v)
             top_m[layer_idx, i] = max(range_v)  # cloud top in m or km
 
     ###
@@ -283,40 +312,64 @@ def findBasesTops(dbz_m, range_v):
 
     return bases, tops, base_m, top_m, thickness
 
-def wrapper(mat_data, var_name='', var_unit=''):
+
+def wrapper(mat_data, **kwargs):
     """Wrap a larda container around .mat file data to use the pyLARDA.Transformations library .
 
     Args:
-        container (.mat) : Matlab .mat file datad
+        mat_data (.mat) : Matlab .mat file datad
+
+    Kwargs:
+        var_name (string) : variable name in .mat file
+        var_unit (string) : unit of the variable
+        var_lims (list) : boundaries of the variable (for plotting)
 
     Return:
         container (dict) : sliced container
     """
+    var_name = kwargs['var_name'] if 'var_name' in kwargs else ''
+    var_unit = kwargs['var_unit'] if 'var_unit' in kwargs else ''
+
     assert isinstance(var_name, str) and len(var_name) > 0, 'Error utility.wrapper! Check var_name argument!'
 
     time_var, range_var, system = '', '', ''
-    name = var_name
-    colormap = 'jet'
-    if 'ts_class_time' in mat_data.keys():     # set variable lists for cloudnet classification dict
+    if 'ts_class_time' in mat_data.keys():  # set variable lists for cloudnet classification dict
         time_var, range_var = 'ts_class_time', 'h_class'
-        system = 'cloudnet-classification'
-        name = 'CLASS'
-        colormap = 'cloudnet_target_new'
-    elif 'ts_cat_time' in mat_data.keys():     # set variable lists for cloudnet categorization dict
+        system = 'clouetnet-classification'
+    elif 'ts_cat_time' in mat_data.keys():  # set variable lists for cloudnet categorization dict
         time_var, range_var = 'ts_cat_time', 'h_cat'
         system = 'cloudnet-categorization'
-    elif 'ts_polly_time' in mat_data.keys():     # set variable lists for PollyXT dict
+    elif 'ts_polly_time' in mat_data.keys():  # set variable lists for PollyXT dict
         time_var, range_var = 'ts_polly_time', 'h_class'
-    elif 'ts_NN_time' in mat_data.keys():     # set variable lists for predicted Ed Luke ANN prediction dict
+    elif 'ts_NN_time' in mat_data.keys():  # set variable lists for predicted Ed Luke ANN prediction dict
         time_var, range_var = 'ts_NN_time', 'h_class'
-    elif 'ts_sp_time' in mat_data.keys():     # set variable lists for Mira Doppler radar dict
+    elif 'ts_sp_time' in mat_data.keys():  # set variable lists for Mira Doppler radar dict
         time_var, range_var = 'ts_sp_time', 'h_class'
         system = 'mira'
-    elif 'ts_rs_time' in mat_data.keys():     # set variable lists for radiosonde dict
+    elif 'ts_rs_time' in mat_data.keys():  # set variable lists for radiosonde dict
         time_var, range_var = 'ts_rs_time', 'h_rs'
         system = 'radio-sonde'
 
+    if var_name == 'target_class_ts':
+        name = 'CLASS'
+        colormap = 'cloudnet_target_new'
+    elif var_name == 'combi_mask_liq':
+        system = 'ann-vs-cloudnet-cloud-droplet-mask'
+        name = 'CLASS'
+        colormap = 'four_colors'
+    elif var_name == 'ldr_cc_ts':
+        system = 'cloudnet-categorization'
+        name = var_name
+        colormap = 'LDR'
+    else:
+        name = var_name
+        colormap = 'cloudnet_jet'
+
+    dt_list = [datenum2datetime(dn) for dn in mat_data[time_var]]
+    time = [h.dt_to_ts(dt) for dt in dt_list]
     var = mat_data[var_name].T
+    var_lims = kwargs['var_lims'] if 'var_lims' in kwargs else [np.nanmin(var), np.nanmax(var)]
+
     if len(var.shape) == 2:
         dimlabel = ['time', 'range']
     elif len(var.shape) == 1:
@@ -330,22 +383,39 @@ def wrapper(mat_data, var_name='', var_unit=''):
                        'rg_unit': 'm',
                        'colormap': colormap,
                        'var_unit': var_unit,
-                       'var_lims': [np.min(var), np.max(var)],
+                       'var_lims': var_lims,
                        'system': system,
                        'name': name,
                        'rg': np.array(mat_data[range_var]),
-                       'ts': np.array(mat_data[time_var]),
+                       'ts': np.array(time),
                        'mask': np.isnan(var),
                        'var': var}
 
     return larda_container
 
+def cdr2ldr(cdr):
+    cdr = np.array(cdr)
+    return np.power(10.0, cdr) / (2 + np.power(10.0, cdr))
 
-#function [idx, hgt]= extract_temp_lines(ia_T_mod_ts, height, isoTemp)
-#tmp = find(ia_T_mod_ts < isoTemp, 1, 'first');
-#idx = length(height); hgt = height(end);
-#if ~isempty(tmp)
-#    idx  = tmp;                               % lowest height index at which T is < isoTemp
-#    hgt  = height(find(ia_T_mod_ts < isoTemp, 1));   % height of the approximate 0degC isotherm
-#end
-#end
+
+def add_boxes(ax, boxes, **kwargs):
+    """ Routine for adding boxes to an existing axis"""
+    from matplotlib.collections import PatchCollection
+    from matplotlib.patches import Rectangle
+
+    # Create list for all the error patches
+    threshold_boxes = []
+    edgecolors = ['red', 'darkgrey', 'blueviolet', 'orange']
+    linestyles = ['-', '--', '-.', ':']
+    for i, (i_box_name, i_box_val) in enumerate(boxes.items()):
+        width, height = cdr2ldr(i_box_val['dpl']), -2.5 - i_box_val['bsc']
+        rect = Rectangle((0, i_box_val['bsc']), width, height,
+                         facecolor='None', linestyle=linestyles[i], edgecolor=edgecolors[i], clip_on=False, label=i_box_name)
+        threshold_boxes.append(rect)
+
+    # Create patch collection with specified colour/alpha
+    pc = PatchCollection(threshold_boxes, edgecolors=edgecolors, linestyles=linestyles, facecolors='None', linewidths=7)
+    ax.add_collection(pc)
+    ax.legend(handles=threshold_boxes, loc='upper right', prop=kwargs)
+    
+    return ax

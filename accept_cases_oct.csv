@@ -19,7 +19,7 @@
 20141012000000,20141012000000,,,,,no ANN output
 20141013000000,20141013063000,0,11,LLLC +  MPC,LLLC at beginning +  multiple cloud layers at 0200UTC,
 20141013063000,20141013090000,0,9,CONV +  DRIZ +  MPC,convective system with MPC detected by cloudnet +  lots of DRIZ,
-20141013093000,20141013120000,0,10,LLLC +  MPC +  DRIZ,long  LLLC with CT below 2km +  multilayer above 4km ALT,
+20141013093000,20141013120000,0,2,LLLC +  MPC +  DRIZ,long  LLLC with CT below 2km +  multilayer above 4km ALT,
 20141013093000,20141013235955,0,3,LLLC,same time frame from above but only looking at LLLC with some DRIZ periods,good LWP
 20141014023000,20141014110000,0,4,MPC +  DRIZ,MPC supercooled CT below 3km +  lots of vertical stripes in target classification +  ,
 20141014110000,20141014183000,0,3,DRIZZ +  LLLC,much DRIZ +  vertical stripes in target classification,
