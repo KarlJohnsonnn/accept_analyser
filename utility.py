@@ -9,10 +9,45 @@ from numba import jit
 
 sys.path.append('../larda/')
 import pyLARDA.helpers as h
+import pyLARDA.Transformations as tr
 import logging
+import matplotlib
 
 logger = logging.getLogger(__name__)
+logger.addHandler(logging.StreamHandler())
 
+"""
+____ _    ____ ___  ____ _       _ _  _ ____ ____ ____ _  _ ____ ___ _ ____ _  _    ___  ____ ____ _ _  _ _ ___ _ ____ _  _ 
+| __ |    |  | |__] |__| |       | |\ | |___ |  | |__/ |\/| |__|  |  | |  | |\ |    |  \ |___ |___ | |\ | |  |  | |  | |\ | 
+|__] |___ |__| |__] |  | |___    | | \| |    |__| |  \ |  | |  |  |  | |__| | \|    |__/ |___ |    | | \| |  |  | |__| | \| 
+                                                                                                                            
+"""
+# definition of lidar box/linfcn thresholds in [log(sr-1 m-1)] and [1] (lin vol depol unit, not CDR)
+lidar_thresh_dict = {'Luke': {'bsc': -4.45, 'dpl': -7.422612476299660e-01},
+                     'deBoer': {'bsc': -4.3, 'dpl': -1.208620483882601e+00},
+                     'Shupe': {'bsc': -4.5, 'dpl': -6.532125137753436e-01},
+                     'Cloudnet': {'bsc': -4.7, 'dpl': 20.000000000000000e+00},
+                     #'Willi': {'bsc': -5.2, 'dpl': -6.532125137753436e-01}
+                     'linear': {'slope': 10.0, 'intersection': -5.5}}
+
+# specific variable information, name from .mat file, unit name, variable limits
+variable_dict = {'Ze_cc_ts': ['dBZ', [-60, 20]], 'Vd_cc_ts': ['m s-1', [-4, 2]],
+                 'width_cc_ts': ['m s-1', [0, 2]], 'ldr_cc_ts': ['dB', [-30, 0]],
+                 'dpol_NN_ts': ['1', [0, 0.3]], 'bsc_NN_ts': ['log(sr-1 m-1)', [-6, -2.5]]}
+
+# cloudnet classes that contain different kinds of liquid cloud droplets
+liq_mask_flags = {'wrm': [1, 3], 'scl': [5, 7], 'both': [1, 3, 5, 7]}
+
+# define a list for with isotherms will be plotted
+isotherm_list = [-38, -25, -10, 0]  # list must be increasing
+
+
+"""
+____ _  _ _  _ ____ ___ _ ____ _  _    ___  ____ ____ _ _  _ _ ___ _ ____ _  _ 
+|___ |  | |\ | |     |  | |  | |\ |    |  \ |___ |___ | |\ | |  |  | |  | |\ | 
+|    |__| | \| |___  |  | |__| | \|    |__/ |___ |    | | \| |  |  | |__| | \| 
+                                                                               
+"""
 def load_dot_mat_file(path, string):
     t0 = time.time()
     data = loadmat(path)
@@ -204,12 +239,12 @@ def mask_below_temperature(mask_copy, isotherm):
     return mask_copy
 
 
-def sum_liquid_layer_thickness_per_category(categories, cloudnet_liq_mask, ann_liquid_mask, combi_mask_liq, rg_res=30.0):
+def sum_liquid_layer_thickness_per_category(cloudnet_liq_mask, ann_liquid_mask, combi_mask_liq, rg_res=30.0):
     """Calculating the liquid layer thickness of the total vertical column"""
-    sum_ts = {i + 1: np.nansum(imask * 1.0, axis=0) * rg_res for i, imask in enumerate(categories[1:])}
+    sum_ts = dict()
     sum_ts.update({itemp: np.count_nonzero(ival, axis=0) * rg_res for itemp, ival in combi_mask_liq.items()})
-    sum_ts.update({'cloudnet': np.nansum(cloudnet_liq_mask * 1.0, axis=0) * rg_res})
-    sum_ts.update({'neuralnet': np.nansum(ann_liquid_mask * 1.0, axis=0) * rg_res})
+    sum_ts.update({'cloudnet': np.nansum(cloudnet_liq_mask, axis=0) * rg_res})
+    sum_ts.update({'neuralnet': np.nansum(ann_liquid_mask, axis=0) * rg_res})
     return sum_ts
 
 
@@ -353,7 +388,7 @@ def wrapper(mat_data, **kwargs):
     if var_name == 'target_class_ts':
         name = 'CLASS'
         colormap = 'cloudnet_target_new'
-    elif var_name == 'combi_mask_liq':
+    elif var_name == 'combi_liq_mask':
         system = 'ann-vs-cloudnet-cloud-droplet-mask'
         name = 'CLASS'
         colormap = 'four_colors'
@@ -405,17 +440,48 @@ def add_boxes(ax, boxes, **kwargs):
 
     # Create list for all the error patches
     threshold_boxes = []
-    edgecolors = ['red', 'darkgrey', 'blueviolet', 'orange']
-    linestyles = ['-', '--', '-.', ':']
+    edgecolors = ['red', 'darkblue', 'blueviolet', 'orange', 'black']
+    linestyles = ['-', '--', '-.', ':', '--']
     for i, (i_box_name, i_box_val) in enumerate(boxes.items()):
-        width, height = cdr2ldr(i_box_val['dpl']), -2.5 - i_box_val['bsc']
-        rect = Rectangle((0, i_box_val['bsc']), width, height,
-                         facecolor='None', linestyle=linestyles[i], edgecolor=edgecolors[i], clip_on=False, label=i_box_name)
-        threshold_boxes.append(rect)
+        if i_box_name is not 'linear':
+            width, height = cdr2ldr(i_box_val['dpl']), -2.5 - i_box_val['bsc']
+            rect = Rectangle((0, i_box_val['bsc']), width, height,
+                             facecolor='None', linestyle=linestyles[i], edgecolor=edgecolors[i], clip_on=False, label=i_box_name)
+            threshold_boxes.append(rect)
 
     # Create patch collection with specified colour/alpha
     pc = PatchCollection(threshold_boxes, edgecolors=edgecolors, linestyles=linestyles, facecolors='None', linewidths=7)
     ax.add_collection(pc)
+
+    if 'linear' in boxes.keys():
+        xaxis = np.linspace(0, 0.3, 120)
+        yaxis = boxes['linear']['slope'] * xaxis + boxes['linear']['intersection']
+        lin = ax.plot(xaxis, yaxis, color=edgecolors[-1], linestyle=linestyles[-1], linewidth=7, label='linear')
+        threshold_boxes.append(lin[0])
+
     ax.legend(handles=threshold_boxes, loc='upper right', prop=kwargs)
     
     return ax
+
+def add_ll_thichkness(ax, dt_list, sum_ll_thickness, **kwargs):
+
+    font_size   = kwargs['font_size']   if 'font_size'   in kwargs else 15
+    font_weight = kwargs['font_weight'] if 'font_weight' in kwargs else 'semibold'
+    y_lim       = kwargs['y_lim']       if 'y_lim'       in kwargs else [0, 2000]
+    smooth      = kwargs['smooth']      if 'smooth'      in kwargs else False
+    cn_varname  = 'cloudnet_smoothed' if smooth else 'cloudnet'
+    nn_varname  = 'neuralnet_smoothed'  if smooth else 'neuralnet'
+
+    ax1 = ax.twinx()
+    ax1.plot(dt_list, sum_ll_thickness[cn_varname], color='black', linestyle='-', alpha=0.75, label=cn_varname)
+    ax1.plot(dt_list, sum_ll_thickness[nn_varname], color='red', linestyle='-', alpha=0.75, label=nn_varname)
+
+    ax1.set_ylim(y_lim)
+    ax1.yaxis.set_minor_locator(matplotlib.ticker.AutoMinorLocator())
+    ax1.tick_params(axis='both', which='both', right=True)
+    ax1.tick_params(axis='both', which='major', labelsize=14, width=3, length=5.5)
+    ax1.tick_params(axis='both', which='minor', width=2, length=3)
+    ax1 = tr.set_xticks_and_xlabels(ax1, dt_list[-1]-dt_list[0])
+    ax1.set_ylabel('liquid layer thickness [m]', fontsize=font_size, fontweight=font_weight)
+
+    return ax1
