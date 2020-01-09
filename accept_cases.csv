@@ -1,7 +1,6 @@
 ﻿begin_dt,end_dt,h0,hend,cloudtype,notes,extra
 20141005000000,20141030015000,0,12,?,?,?
 20141005000000,20141005015000,0,11,MPC +  DRIZ +  LLLC +  CIR,DRIZ cloud with CT at 5km ALT +  target class. vert. stripes ,no reliable LWP
-20141005015000,20141005033000,0,10,MPC +  CIR +  LLLC,multple cloud layers +  LLLC CT below 1.5km + MPC TC below 5km + CIR CT below 10km,no reliable LWP
 20141005060000,20141005100000,0,11,LLLC +  STRAT,thick LLLC below 2km + SCL in cloud above?,no reliable LWP
 20141005103000,20141005235955,0,10,LLLC +  MPC +  CIR,multiple cloud layers +  good ANN scenario,no reliable LWP
 20141006000000,20141006020000,0,4,LLLC +  DRIZ,LLLC incl. DRIZ periods +  all above freezing point,

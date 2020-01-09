@@ -489,7 +489,10 @@ def add_ll_thichkness(ax, dt_list, sum_ll_thickness, **kwargs):
 def calc_overlapp_supersat_liquidmask(rs_data, liq_mask):
     overlapp = np.argwhere(np.logical_and(liq_mask, rs_data['abv_thresh_mask']))
     idx_tot_pixel = np.argwhere(liq_mask[:, rs_data['ts_avbl_mask']])
-    return overlapp.shape[0] / idx_tot_pixel.shape[0] * 100
+    if idx_tot_pixel.shape[0] > 0:
+        return overlapp.shape[0] / idx_tot_pixel.shape[0] * 100
+    else:
+        return 0
 
 def remove_cloud_edges(mask, n=3):
     """

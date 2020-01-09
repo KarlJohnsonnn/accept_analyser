@@ -93,12 +93,12 @@ exclude_cloud_edge_bins = 2
 relhum_threshold = 80.0
 
 plot_size_2D = [10, 8]
-plot_target_classification    = False
-plot_liquid_pixel_masks       = False
-plot_cloudnet_radar_moments   = False
-plot_cloudnet_lidar_variables = False
+plot_target_classification    = True
+plot_liquid_pixel_masks       = True
+plot_cloudnet_radar_moments   = True
+plot_cloudnet_lidar_variables = True
 plot_cloudnet_mwr_lwp         = True
-plot_scatter_depol_bsc        = False
+plot_scatter_depol_bsc        = True
 plot_FoO                      = True
 plot_relhum_liqpxl_overlapp   = True
 
@@ -122,7 +122,7 @@ if __name__ == '__main__':
     cloudnet_dt    = np.array([datenum2datetime(ts) for ts in cloudnet_dn])
     cloudnet_rg    = classification_tot['h_class'].reshape((n_tot_rg_class,))
 
-    for case in case_list[0:1]:
+    for case in case_list[:1]:
         # if case['notes'] == 'ex': continue  # exclude this case and check the next one
 
         begin_dt, end_dt = case['begin_dt'], case['end_dt']
@@ -266,8 +266,8 @@ if __name__ == '__main__':
             pred_dpl = wrapper(hsrl_pred, var_name='dpol_NN_ts', var_unit='1')
 
             if exclude_all_but in liq_mask_flags:
-                pred_dpl['mask'][cloudnet_liq_mask.T == 0] = True
-                pred_bsc['mask'][cloudnet_liq_mask.T == 0] = True
+                pred_dpl['mask'][cloudnet_liq_mask.T == False] = True
+                pred_bsc['mask'][cloudnet_liq_mask.T == False] = True
 
             fig, ax = tr.plot_scatter(pred_dpl, pred_bsc, fig_size=[8, 8], x_lim=[0, 0.3], y_lim=[-6, -2.5], title=titlestring, colorbar=True)
             ax      = add_boxes(ax, lidar_thresh_dict, **{'size': 15, 'weight': 'semibold'})
@@ -380,7 +380,8 @@ if __name__ == '__main__':
                 # get the time steps, where radiosonde data is available
                 radiosondes.update({'rh_rs_ts_masked': np.ma.masked_invalid(radiosondes['rh_rs_ts']), 'nonzero_mask': ~np.isnan(radiosondes['rh_rs_ts'])})
                 radiosondes.update({'ts_avbl_mask': radiosondes['nonzero_mask'].any(axis=0)})
-                radiosondes.update({'abv_thresh_mask': np.logical_and(radiosondes['rh_rs_ts_masked'] > relhum_threshold, radiosondes['nonzero_mask'])})
+                with np.errstate(invalid='ignore'):
+                    radiosondes.update({'abv_thresh_mask': np.logical_and(radiosondes['rh_rs_ts_masked'] > relhum_threshold, radiosondes['nonzero_mask'])})
                 idx_tot_cn_rs = np.argwhere(cloudnet_liq_mask[:, radiosondes['ts_avbl_mask']])
                 idx_tot_nn_rs = np.argwhere(cloudnet_liq_mask[:, radiosondes['ts_avbl_mask']])
                 perc_overlapp_cn = calc_overlapp_supersat_liquidmask(radiosondes, cloudnet_liq_mask)
@@ -423,8 +424,8 @@ if __name__ == '__main__':
                         y_var = wrapper({**hsrl_pred, **categorization}, var_name=y_varname, var_unit=y_info[0])
 
                         if exclude_all_but in liq_mask_flags:
-                            x_var['mask'][ann_liquid_mask.T == 0] = True
-                            y_var['mask'][ann_liquid_mask.T == 0] = True
+                            x_var['mask'][ann_liquid_mask.T == False] = True
+                            y_var['mask'][ann_liquid_mask.T == False] = True
 
                         fig, ax = tr.plot_scatter(x_var, y_var, fig_size=[8, 8], x_lim=x_info[1], y_lim=y_info[1], title=titlestring, colorbar=True)
                         fig_name = f'FoO-{ithresh_name}-{x_varname}-vs-{y_varname}_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT.png'
