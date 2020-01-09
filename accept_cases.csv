@@ -4,7 +4,7 @@
 20141005015000,20141005033000,0,10,MPC +  CIR +  LLLC,multple cloud layers +  LLLC CT below 1.5km + MPC TC below 5km + CIR CT below 10km,no reliable LWP
 20141005060000,20141005100000,0,11,LLLC +  STRAT,thick LLLC below 2km + SCL in cloud above?,no reliable LWP
 20141005103000,20141005235955,0,10,LLLC +  MPC +  CIR,multiple cloud layers +  good ANN scenario,no reliable LWP
-20141006000000,20141006093000,0,4,LLLC +  DRIZ,LLLC incl. DRIZ periods +  all above freezing point,
+20141006000000,20141006020000,0,4,LLLC +  DRIZ,LLLC incl. DRIZ periods +  all above freezing point,
 20141006093000,20141006140000,0,11,LLLC +  DRIZ +  CIR,LLLC with rising CT still below 2km +  some DRIZ periods,
 20141006140000,20141006213000,0,11,LLLC +  DRIZ +  DCS +  MPC,multiple cloud types with some SCL at 6-7km ALT, including some periods of DRIZ
 20141007000000,20141007030000,0,11,DCS +  MPC,DCS backside +  MPC afte 0200UTC at 3km ALT,no reliable LWP

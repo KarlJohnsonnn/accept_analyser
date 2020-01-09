@@ -4,6 +4,7 @@ import numpy as np
 import sys
 import time
 
+from itertools import combinations, groupby
 from scipy.io import loadmat
 from numba import jit
 
@@ -24,11 +25,12 @@ ____ _    ____ ___  ____ _       _ _  _ ____ ____ ____ _  _ ____ ___ _ ____ _  _
 """
 # definition of lidar box/linfcn thresholds in [log(sr-1 m-1)] and [1] (lin vol depol unit, not CDR)
 lidar_thresh_dict = {'Luke': {'bsc': -4.45, 'dpl': -7.422612476299660e-01},
-                     'deBoer': {'bsc': -4.3, 'dpl': -1.208620483882601e+00},
-                     'Shupe': {'bsc': -4.5, 'dpl': -6.532125137753436e-01},
-                     'Cloudnet': {'bsc': -4.7, 'dpl': 20.000000000000000e+00},
-                     #'Willi': {'bsc': -5.2, 'dpl': -6.532125137753436e-01}
-                     'linear': {'slope': 10.0, 'intersection': -5.5}}
+                     #'deBoer': {'bsc': -4.3, 'dpl': -1.208620483882601e+00},
+                     #'Shupe': {'bsc': -4.5, 'dpl': -6.532125137753436e-01},
+                     #'Cloudnet': {'bsc': -4.7, 'dpl': 20.000000000000000e+00},
+                     # 'Willi': {'bsc': -5.2, 'dpl': -6.532125137753436e-01}
+                     'linear': {'slope': 10.0, 'intersection': -5.5}
+                     }
 
 # specific variable information, name from .mat file, unit name, variable limits
 variable_dict = {'Ze_cc_ts': ['dBZ', [-60, 20]], 'Vd_cc_ts': ['m s-1', [-4, 2]],
@@ -41,19 +43,21 @@ liq_mask_flags = {'wrm': [1, 3], 'scl': [5, 7], 'both': [1, 3, 5, 7]}
 # define a list for with isotherms will be plotted
 isotherm_list = [-38, -25, -10, 0]  # list must be increasing
 
-
 """
 ____ _  _ _  _ ____ ___ _ ____ _  _    ___  ____ ____ _ _  _ _ ___ _ ____ _  _ 
 |___ |  | |\ | |     |  | |  | |\ |    |  \ |___ |___ | |\ | |  |  | |  | |\ | 
 |    |__| | \| |___  |  | |__| | \|    |__/ |___ |    | | \| |  |  | |__| | \| 
                                                                                
 """
+
+
 def load_dot_mat_file(path, string):
     t0 = time.time()
     data = loadmat(path)
     logger.info(f'Loading {string} data took {datetime.timedelta(seconds=int(time.time() - t0))} [hour:min:sec]')
     return data
-    
+
+
 def cases_from_csv(data_loc, **kwargs):
     """This function extracts information from an excel sheet. It can be used for different scenarios.
     The first row of the excel sheet contains the headline, defined as follows:
@@ -204,13 +208,6 @@ def get_temp_lines(temperatures, rg_list, isoTemp):
     return {'idx': np.array(idx_list), 'temp': np.array(temp_list), 'rg': np.array(range_list)}
 
 
-def get_indices(categories, cat_list):
-    if len(cat_list) == 1:
-        return categories[cat_list[0]]
-    elif len(cat_list) > 1:
-        return np.logical_or.reduce(tuple(categories[icat] for icat in cat_list))
-
-
 def get_combined_liquid_mask(liq_pred_mask, cloudnet_liq_mask):
     """Return an 2D integer array, specifying the location in time and height, where liquid cloud droplets orruce.
         0   ...     no signal
@@ -223,11 +220,12 @@ def get_combined_liquid_mask(liq_pred_mask, cloudnet_liq_mask):
             cloudnet_liq_mask (array, bool) : 2D array in time and height where True values represent liquid pixel from Cloudnet
     """
     combi_mask_liq = np.zeros(liq_pred_mask.shape, dtype=np.int)
-    combi_mask_liq[np.logical_and(liq_pred_mask,  cloudnet_liq_mask)] = 1  # pixel classified as liquid in both
+    combi_mask_liq[np.logical_and(liq_pred_mask, cloudnet_liq_mask)] = 1  # pixel classified as liquid in both
     combi_mask_liq[np.logical_and(liq_pred_mask, ~cloudnet_liq_mask)] = 2  # pixel classified as liquid by NN only
     combi_mask_liq[np.logical_and(~liq_pred_mask, cloudnet_liq_mask)] = 3  # pixel classified as liquid by Cloudnet only
 
     return combi_mask_liq
+
 
 @jit()
 def mask_below_temperature(mask_copy, isotherm):
@@ -314,7 +312,7 @@ def findBasesTops(dbz_m, range_v):
                     top_m[layer_idx, i] = range_v[current_top]  # cloud top in m or km
 
                     logger.info(str(i) + ': found ' + str(layer_idx) + '. cloud [' + str(bases[layer_idx, i]) + ', ' +
-                          str(tops[layer_idx, i]) + '], thickness: ' + str(thickness) + 'km')
+                                str(tops[layer_idx, i]) + '], thickness: ' + str(thickness) + 'km')
 
                     in_cloud = 0
 
@@ -428,6 +426,7 @@ def wrapper(mat_data, **kwargs):
 
     return larda_container
 
+
 def cdr2ldr(cdr):
     cdr = np.array(cdr)
     return np.power(10.0, cdr) / (2 + np.power(10.0, cdr))
@@ -460,17 +459,17 @@ def add_boxes(ax, boxes, **kwargs):
         threshold_boxes.append(lin[0])
 
     ax.legend(handles=threshold_boxes, loc='upper right', prop=kwargs)
-    
+
     return ax
 
-def add_ll_thichkness(ax, dt_list, sum_ll_thickness, **kwargs):
 
-    font_size   = kwargs['font_size']   if 'font_size'   in kwargs else 15
+def add_ll_thichkness(ax, dt_list, sum_ll_thickness, **kwargs):
+    font_size = kwargs['font_size'] if 'font_size' in kwargs else 15
     font_weight = kwargs['font_weight'] if 'font_weight' in kwargs else 'semibold'
-    y_lim       = kwargs['y_lim']       if 'y_lim'       in kwargs else [0, 2000]
-    smooth      = kwargs['smooth']      if 'smooth'      in kwargs else False
-    cn_varname  = 'cloudnet_smoothed' if smooth else 'cloudnet'
-    nn_varname  = 'neuralnet_smoothed'  if smooth else 'neuralnet'
+    y_lim = kwargs['y_lim'] if 'y_lim' in kwargs else [0, 2000]
+    smooth = kwargs['smooth'] if 'smooth' in kwargs else False
+    cn_varname = 'cloudnet_smoothed' if smooth else 'cloudnet'
+    nn_varname = 'neuralnet_smoothed' if smooth else 'neuralnet'
 
     ax1 = ax.twinx()
     ax1.plot(dt_list, sum_ll_thickness[cn_varname], color='black', linestyle='-', alpha=0.75, label=cn_varname)
@@ -481,7 +480,80 @@ def add_ll_thichkness(ax, dt_list, sum_ll_thickness, **kwargs):
     ax1.tick_params(axis='both', which='both', right=True)
     ax1.tick_params(axis='both', which='major', labelsize=14, width=3, length=5.5)
     ax1.tick_params(axis='both', which='minor', width=2, length=3)
-    ax1 = tr.set_xticks_and_xlabels(ax1, dt_list[-1]-dt_list[0])
+    ax1 = tr.set_xticks_and_xlabels(ax1, dt_list[-1] - dt_list[0])
     ax1.set_ylabel('liquid layer thickness [m]', fontsize=font_size, fontweight=font_weight)
 
     return ax1
+
+
+def calc_overlapp_supersat_liquidmask(rs_data, liq_mask):
+    overlapp = np.argwhere(np.logical_and(liq_mask, rs_data['abv_thresh_mask']))
+    idx_tot_pixel = np.argwhere(liq_mask[:, rs_data['ts_avbl_mask']])
+    return overlapp.shape[0] / idx_tot_pixel.shape[0] * 100
+
+def remove_cloud_edges(mask, n=3):
+    """
+    This function returns the 2D binary mask of an array shrunk by n pixels.
+    Args:
+        mask (array) : where True and False corresponds to masked value, i.e. no signal, and False = a non masked value, i.e. signal respectively
+        n (int) : number by which the mask is shrunk, default: 3
+
+    Returns:
+        mask reduced by n pixels around the edges
+
+    """
+    # row-wise operation
+    arr = np.full(mask.shape, False)
+    for irow in range(n, mask.shape[0] - n):
+        arr[irow:irow + n, mask[irow, :] < mask[irow + 1, :]] = True
+        arr[irow - n:irow, mask[irow, :] > mask[irow + 1, :]] = True
+    idx_first_rg = np.where(mask[:, 0] == False)
+    idx_last_rg = np.where(mask[:, -1] == False)
+    arr[idx_first_rg, :n] = True
+    arr[idx_last_rg, :n]  = True
+    # column-wise operation
+    for icol in range(n, mask.shape[1] - n):
+        arr[mask[:, icol] < mask[:, icol + 1], icol:icol + n] = True
+        arr[mask[:, icol] > mask[:, icol + 1], icol - n:icol] = True
+    idx_first = np.where(mask[0, :] == False)
+    idx_last = np.where(mask[-1, :] == False)
+    arr[:n, idx_first] = True
+    arr[:n, idx_last]  = True
+
+    mask[arr] = True
+    return mask
+
+def find_bases_tops(mask, rg_list):
+    """
+    This function finds cloud bases and tops for a provided binary cloud mask.
+    Args:
+        mask (np.array, dtype=bool) : bool array containing False = signal, True=no-signal
+        rg_list (list) : list of range values
+
+    Returns:
+        cloud_prop (list) : list containing a dict for every time step consisting of cloud bases/top indices, range and width
+        cloud_mask (np.array) : integer array, containing +1 for cloud tops, -1 for cloud bases and 0 for fill_value
+    """
+    cloud_prop = []
+    cloud_mask = np.full(mask.shape, 0, dtype=np.int)
+    for iT in range(mask.shape[0]):
+        cloud = [(k, sum(1 for j in g)) for k, g in groupby(mask[iT, :])]
+        idx_cloud_edges = np.cumsum([prop[1] for prop in cloud])
+        bases, tops = idx_cloud_edges[0:][::2][:-1], idx_cloud_edges[1:][::2]
+        if tops.size>0 and tops[-1] == mask.shape[1]:
+            tops[-1] = mask.shape[1]-1
+        cloud_mask[iT, bases] = -1
+        cloud_mask[iT, tops] = +1
+        cloud_prop.append({'idx_cb': bases, 'val_cb': rg_list[bases],  # cloud bases
+                           'idx_ct': tops, 'val_ct': rg_list[tops],  # cloud tops
+                           'width': [ct - cb for ct, cb in zip(rg_list[tops], rg_list[bases])]
+                           })
+    return cloud_prop, cloud_mask
+
+def get_indices(categories, cat_list):
+    if len(cat_list) == 1:
+        return categories[cat_list[0]]
+    elif len(cat_list) > 1:
+        return np.logical_or.reduce(tuple(categories[icat] for icat in cat_list))
+    else:
+        return np.logical_or.reduce(tuple(categories[icat] for icat in range(len(categories))))

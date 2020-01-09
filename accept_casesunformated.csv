@@ -1,0 +1,115 @@
+﻿begin_dt,end_dt,h0,hend,cloudtype,notes,extra
+20141005000000,20141030015000,0,12,?,?,?
+20141005000000,20141005015000,0,11,MPC +  DRIZ +  LLLC +  CIR,DRIZ cloud with CT at 5km ALT +  target class. vert. stripes ,no reliable LWP
+20141005015000,20141005033000,0,10,MPC +  CIR +  LLLC,multple cloud layers +  LLLC CT below 1.5km + MPC TC below 5km + CIR CT below 10km,no reliable LWP
+20141005060000,20141005100000,0,11,LLLC +  STRAT,thick LLLC below 2km + SCL in cloud above?,no reliable LWP
+20141005103000,20141005235955,0,10,LLLC +  MPC +  CIR,multiple cloud layers +  good ANN scenario,no reliable LWP
+20141006000000,20141006020000,0,4,LLLC +  DRIZ,LLLC incl. DRIZ periods +  all above freezing point,
+20141006093000,20141006140000,0,11,LLLC +  DRIZ +  CIR,LLLC with rising CT still below 2km +  some DRIZ periods,
+20141006140000,20141006213000,0,11,LLLC +  DRIZ +  DCS +  MPC,multiple cloud types with some SCL at 6-7km ALT, including some periods of DRIZ
+20141007000000,20141007030000,0,11,DCS +  MPC,DCS backside +  MPC afte 0200UTC at 3km ALT,no reliable LWP
+20141007033000,20141007061500,0,1,LLLC,LLLC with CT below 1km +  no DRIZ,
+20141007061500,20141007153000,0,8,CONV +  MPC,multple convectiv systems CT between 3.5-7.5 km ALT +  lots of DRIZ periods,
+20141007160000,20141007190000,0,7,STRAT,cloud with prob. SCL +  ANN predicts lots of SCL - cloudnet almost none,very low LWP?
+20141008020000,20141008083000,0,10,LLLC +  MPC +  STRAT,multiple cloud layers +  good ANN scenario +  MPC CT at 4km and above STRAT cloud --> dev. DCS,
+20141008020000,20141008083000,0,5,LLLC +  MPC +  STRAT,multiple cloud layers +  good ANN scenario +  MPC CT at 4km and above STRAT cloud --> dev. DCS +  same case as above but only up to 5km ALT,
+20141008083000,20141008094000,0,10,DCS,DCS with some CD and SCL detected by cloudnet,almost no LWP
+20141009000000,20141009000000,,,,,no ANN output
+20141010000000,20141010000000,,,,,no ANN output
+20141011000000,20141011000000,,,,,no ANN output
+20141012000000,20141012000000,,,,,no ANN output
+20141013000000,20141013063000,0,11,LLLC +  MPC,LLLC at beginning +  multiple cloud layers at 0200UTC,
+20141013063000,20141013090000,0,9,CONV +  DRIZ +  MPC,convective system with MPC detected by cloudnet +  lots of DRIZ,
+20141013093000,20141013120000,0,2,LLLC +  MPC +  DRIZ,long  LLLC with CT below 2km +  multilayer above 4km ALT,
+20141013093000,20141013235955,0,3,LLLC,same time frame from above but only looking at LLLC with some DRIZ periods,good LWP
+20141014023000,20141014110000,0,4,MPC +  DRIZ,MPC supercooled CT below 3km +  lots of vertical stripes in target classification +  ,
+20141014110000,20141014183000,0,3,DRIZZ +  LLLC,much DRIZ +  vertical stripes in target classification,
+20141014183000,20141014235955,0,3,DRIZZ +  MPC +  LLLC,MPC supercooled CT below 3km +  lots of vertical stripes in target classification +  ,
+20141015000000,20141015060000,0,4,DRIZZ +  MPC +  LLLC,MPC supercooled CT below 3km +  lots of vertical stripes in target classification +  ,
+20141015113000,20141015130000,0,3,LLLC,single layer +  small amounts of DRIZ,good LWP
+20141015130000,20141015180000,0,10,LLLC +  MPC,multiple LLLC +  multiple layers with large gap between layers +  possible SCL above 6km ALT,
+20141015180000,20141015235955,0,9,DCS,convective system with MPC detected by cloudnet in beginning +  lots of DRIZ+CD in lower ALT,
+20141016000000,20141016064500,0,10,CONV +  DCS,multiple convective systems +  possible SCL detected by cloudnet,
+20141016064500,20141016090000,0,3,LLLC +  DRIZ,small amounts of DRIZ +  ,
+20141016090000,20141016133000,0,6,LLLC +  DRIZ +  MPC,smaller peridos of DRIZ and LLLC,
+20141016140000,20141016235955,0,11,LLLC +  CIR +  STRAT,CIR in the beginning +  tiny LLLC at 1900UTC +  thick mid/high level cloud +  continuuing on next day,
+20141017000000,20141017050000,3,10,STRAT,STRAT cloud with no SCL detected by cloudnet,very low LWP?
+20141017054500,20141017103000,0,3,LLLC,very low LLLC below 1km ALT +  more at 2.5km ALT,
+20141017103000,20141017133000,0,4,DRIZ +  MPC,small amounts of DRIZ +  maybe MPC top?,
+20141017170000,20141017235955,0,11,MPC +  CIR,MPC clouds at 6km ALT and below +  above CIR clouds ,low LWP
+20141018003000,20141018060000,0,12,MPC +  DRIZ +  CIR,multiple cloud layers +  including DRIZ +  SCL below 5.5km ALT,LWP mostly available
+20141018060000,20141018133000,0,12,CIR,CIR only in this region +  no liquid detected/predicted,
+20141018220000,20141018235955,0,3,LLLC,single layer,very low LWP?
+20141019000000,20141019103000,0,10,MPC,small patchy SCL layers ,
+20141019103000,20141019160000,0,6,MPC +  DRIZ +  CONV +  LLLC,multiple cloud layers +  incl LLLC +  short DRIZ events,
+20141019190000,20141019235955,0,10,MPC +  LLLC +  CIR,LLLC with CT below 1km +  DRIZ detected by cloudnet +  MPC with CT at 7.5km ALT,very low LWP?
+20141020010000,20141020133000,0,3,LLLC +  DRIZ +  MPC,longer period with DRIZ +  LLLC again stripes in target classification +  clouds all above 0°C,
+20141020133000,20141020180000,0,8,LLLC +  DRIZ +  MPC,multiple cloud layers +  MPC with SCL at 5.5km ALT +  LLLC at 2km ALT,
+20141020180000,20141020210000,0,6,MPC,MPC with good LWP values?,
+20141020210000,20141020235955,0,3,MPC +  DRIZ,MPC contains some DRIZ +  later DRIZ reaching ground,
+20141021000000,20141021060000,0,3,MPC +  DRIZ,MPC contains some DRIZ +  later DRIZ reaching ground,
+20141021060000,20141021235955,0,9,CONV +  DCS,precipitation almost hole day +  some SCL deteceted by cloudnet +  stripes again,bad LWP +  mostly wet radome
+20141022000000,20141022120000,0,7,CONV +  DCS,last day continuus +  precipitation almost hole day +  some SCL deteceted by cloudnet +  stripes again,bad LWP +  mostly wet radome +  missing data
+20141023000000,20141023000000,,,,,cloud free
+20141024000000,20141024053000,0,6,LLLC +  DRIZ,lots of DRIZ incl CD +  almost single layer,good enough LWP
+20141024053000,20141024220000,0,10,CONV +  DCS,lots of DRIZ incl CD +  CD within DRIZ with lowering ALT below 2km,almost no LWP
+20141025033000,20141025235955,0,2,LLLC,patchy LLLC +  some with DRIZ and CD + ,good LWP
+20141026000000,20141026120000,0,2,LLLC,patchy LLLC +  small amounts of DRIZ +  above CIR,
+20141026000000,20141026120000,0,12,CIR +  MPC,same time frame from above but only looking at CIR part of the cloud +  cloud gap of 4km,
+20141026183000,20141026235955,0,2,LLLC,patchy LLLC +  small tiny of DRIZ +  above CIR,
+20141026120000,20141026235955,0,12,CIR +  MPC,same time frame from above but only looking at CIR part of the cloud +  cloud gap of 4km,
+20141027000000,20141027000000,,,,,almost cloud free +  data gaps
+20141028180000,20141028235955,0,1,LLLC,tiny amounts of liquid?,almost no LWP measured
+20141029000000,20141029000000,,,,odd target categorization … exclude from analysis???,almost cloud free +  data gaps
+20141030000000,20141030093000,0,6,DRIZ +  MPC,odd target categorization … exclude from analysis??? +  ANN predicts lots of SCL,
+20141030093000,20141030143000,0,11,DRIZZ +  CONV +  CIR,multiple cloud layers +  strong precipitation in beginning +  MPC at 1200UTC CT at 5km ALT,
+20141030150000,20141030220000,0,4,MPC,single layer MPC,mostly very low LWP
+20141031060000,20141031100000,0,4,MPC +  LLLC,LLLC could also be SCL,small amounts of LWP after 8UTC
+20141031040000,20141031160000,0,12,CIR +  MPC,almost same time frame as above but looking at CIR/MPC part +  some liquid detected by cloudnet,
+20141101153000,20141101190000,0,7,MP + DRIZ + LLLC + LLLC, 1700-0019 UTC ... 1-2km ALT  DRIZ 1730-1800UTC, 0-2.4km ALT, MPC 1600-1900 UTC 2,5-6km ALT
+20141101203000,20141101235955,0,2,LLLC,LLLC 1930-2400 UTC, 0.5-2km ALT,
+20141102003000,20141102023000,0,2,LLLC, DRIZ,LLLC including DRIZ 0300-0230 UTC, 0-2km ALT,
+20141102023000,20141102040000,2,3,LLLC,LLLC 0230-0400 UTC at 2-3km ALT, CN detects aerosol&insects at 0300-0330 UTC
+20141102130000,20141102203000,1,7,MPC, LLLC, DRIZZ,longer timeframe containing MPC, LLLC at 1800UTC at 2km ALT, small amounts of DRIZZEL
+20141102203000,20141102235955,0,10,DCS,DCS with cloud top at 8km ALT, meltinglayer at 2km
+20141103000000,20141103020000,0,10,DCS,DCS with cloud top at 8-9km ALT, meltinglayer at 1.5km,missing data
+20141103020000,20141103040000,0,3,DRIZ, MPC, LLLC,small DRIZ event CT at 2.5km ALT, smaller LLLC at 0330UTC at 0.5km ALT,missing dataA
+20141103040000,20141103060000,0,7,MPC, LLLC, DCS,beginning of DCS, LLLC at 0.5-1km ALT, MPC at 4-6km ALT,missing data
+20141103060000,20141103084500,0,11,DCS,wet radome,missing data
+20141103175500,20141103235955,0,11,DCS,wet radome,missing data
+20141104,20141104,,,,,no ANN output
+20141105,20141105,,,,,no ANN output
+20141106,20141106,,,,,no data
+20141107023000,20141107084500,1,4,MPC,patchy MPC
+20141107085000,20141107123000,0,10,DCS,cloudnet detects CD in DRIZ
+20141107123000,20141107154500,0,2,LLLC,thick LLLC below 2km
+20141107155000,20141107180000,0,5,DRIZ,DRIZ cloud CT at 4 km
+20141107180000,20141107233000,0,3,DRIZ,small showers  and LLLC at melting layer height
+20141108,20141108,,,,,no data
+20141109000000,20141109051500,0,10,DRIZ, MPC, LLLC, …,multiple different cloud types, cloud above 4 km mostly ice?
+20141109061500,20141109184500,0,4,MPC, LLLC,longer period of MPC and LLLC, above thin cirrus clouds
+20141109184500,20141109203500,0,10,LLLC, DRIZ, CIR,small shower at 1900UTC
+20141110,20141110,,,,,no ANN output
+20141111,20141111,,,,,no ANN output
+20141112050000,20141112150000,0,11,DCS,starts low, increasing CT after 0900UTC
+20141113130000,20141113160000,0,10,CIR  ,higher level cloud, small amounts of SCL
+20141113183000,20141113204500,0,6,MPC,single MPC cloud
+20141114000000,20141114083000,0,11,CIR  ,longer period of CIR clouds, small amounts of SCL?
+20141114083000,20141114143000,0,11,MPC, DRIZ,patchy MPC, DCS stats forming at 1200UTC
+20141114143000,20141114210000,0,11,DCS,
+20141114210000,20141114214500,0,3,LLLC, DRIZ, DCS,mixture of LLLC, remainings of DCP and DRIZ, looking only at max 3km ALT
+20141114214500,20141114235955,0,11,DCS, DRIZ,more DRIZ form DCS, also CD and SCL detected by cloudnet
+20141115000000,20141115123000,0,10,DCS, DRIZ,continuning DCS, cloudnet detects some CD within DRIZ (missclassification?)
+20141115123000,20141115190000,0,3,DRIZ, MPC, …,weird classification (is all DRIZ?), MPC above melting layer
+20141115200000,20141115235955,0,10,DCS,"developing DCS, "
+20141115200000,20141115235955,0,3,LLLC,small LLLC at 1.5km ALT
+20141116000000,20141116033000,0,10,DCS, LLLC,DCS continuues, no DRIZ in this time frame
+20141116033000,20141117220000,0,10,DCS, DRIZ,long DCS, cloudnet detecting some CD in DRIZZ and slightly above melting layer,almost no LWP available
+20141117000000,20141117023000,0,2,MPC, LLLC, DRIZZ,low level cloud including short period of DRIZ, CT below 2km ALT
+20141117023000,20141117050000,0,3,MPC, DRIZ,precipitating low level cloud CT below 2.5km,unreliable LWP
+20141117050000,20141117093000,0,2,MPC, DRIZ, CD,low level cloud including short period of DRIZ, CT below 2km ALT,reliable LWP
+20141117103000,20141117143000,0,2,LLLC,single layer low level liquid cloud
+20141117143000,20141117235955,0,4,MPC, DRIZ,lower level clouds with precipitation, between precip. smaller LLLC, odd target classification (vertical stripes)
+20141118030000,20141118060000,0,9,MPC, DRIZ,SCL at 3km ALT untill 4UTC, mostly ice
+20141118060000,20141118132500,0,10,MPC, DRIZ,at least 2 cloud layers, including DRIZ, gap between 2.5-5km ALT, above only ice?
+
