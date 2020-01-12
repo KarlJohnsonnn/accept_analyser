@@ -23,22 +23,29 @@ ____ _    ____ ___  ____ _       _ _  _ ____ ____ ____ _  _ ____ ___ _ ____ _  _
 |__] |___ |__| |__] |  | |___    | | \| |    |__| |  \ |  | |  |  |  | |__| | \|    |__/ |___ |    | | \| |  |  | |__| | \| 
                                                                                                                             
 """
-# definition of lidar box/linfcn thresholds in [log(sr-1 m-1)] and [1] (lin vol depol unit, not CDR)
-lidar_thresh_dict = {'Luke': {'bsc': -4.45, 'dpl': -7.422612476299660e-01},
-                     #'deBoer': {'bsc': -4.3, 'dpl': -1.208620483882601e+00},
-                     #'Shupe': {'bsc': -4.5, 'dpl': -6.532125137753436e-01},
-                     #'Cloudnet': {'bsc': -4.7, 'dpl': 20.000000000000000e+00},
-                     # 'Willi': {'bsc': -5.2, 'dpl': -6.532125137753436e-01}
+# definition of lidar box/linfcn thresholds in [log(sr-1 m-1)] and (CDR)
+lidar_thresh_dict = {'Luke': {'bsc': -4.45, 'dpl': 0.083},
+                     'deBoer': {'bsc': -4.3, 'dpl': 0.03},
+                     'Shupe': {'bsc': -4.5, 'dpl': 0.1},
+                     'Cloudnet': {'bsc': -4.7, 'dpl': 1.0},
+                     #'Willi': {'bsc': -5.2, 'dpl': 0.1}
                      'linear': {'slope': 10.0, 'intersection': -5.5}
                      }
 
 # specific variable information, name from .mat file, unit name, variable limits
-variable_dict = {'Ze_cc_ts': ['dBZ', [-60, 20]], 'Vd_cc_ts': ['m s-1', [-4, 2]],
-                 'width_cc_ts': ['m s-1', [0, 2]], 'ldr_cc_ts': ['dB', [-30, 0]],
-                 'dpol_NN_ts': ['1', [0, 0.3]], 'bsc_NN_ts': ['log(sr-1 m-1)', [-6, -2.5]]}
+variable_dict = {'Ze_cc_ts': ['dBZ', [-60, 20]],
+                 'Vd_cc_ts': ['m s-1', [-4, 2]],
+                 'width_cc_ts': ['m s-1', [0, 2]],
+                 'dpol_NN_ts': ['1', [0, 0.3]],
+                 'bsc_NN_ts': ['log(sr-1 m-1)', [-6, -2.5]]
+                 }
 
 # cloudnet classes that contain different kinds of liquid cloud droplets
-liq_mask_flags = {'wrm': [1, 3], 'scl': [5, 7], 'both': [1, 3, 5, 7]}
+liq_mask_flags = {'wrm': [1, 3],            # cloud droplets only, drizzle/rain + cloud droplets
+                  'scl': [5, 7],            # ice + supercooled liquid, melting ice + cloud liquid droplets
+                  'both': [1, 3, 5, 7],     # wrm + scl
+                  'all': np.linspace(1, 10, 10, dtype=np.int)   # all cloudnet classes
+                  }
 
 # define a list for with isotherms will be plotted
 isotherm_list = [-38, -25, -10, 0]  # list must be increasing
@@ -257,95 +264,6 @@ def init_nan_array(shape):
     """
     return np.full(shape, fill_value=np.nan)
 
-
-def findBasesTops(dbz_m, range_v):
-    """Find cloud bases and tops from radar reflectivity profiles for up to 10 cloud layers no cloud = NaN.
-
-    Args:
-        dbz_m (np.array): reflectivity matrix [dbz] (range x time)
-        range_v (list): radar height vector [m or km] (range)
-
-    Returns:
-        bases (np.array): matrix of indices (idx) of cloud bases  (10 x time)
-        tops (np.array): matrix of indices (idx) of cloud tops   (10 x time)
-        base_m (np.array): matrix of heights of cloud bases  [m or km, same unit as range] (10 x time), 1st base = -1 means no cloud detected
-        top_m (np.array): matrix of heights of cloud tops   [m or km, same unit as range] (10 x time), 1st top  = -1 means no cloud detected
-        thickness (np.array): matrix of cloud thickness         [m or km, same unit as range] (10 x time)
-    """
-
-    shape_dbz = dbz_m.shape
-    len_time = shape_dbz[1]
-    len_range = len(range_v)
-
-    bases = init_nan_array((10, len_time))
-    tops = init_nan_array((10, len_time))
-    top_m = init_nan_array((10, len_time))  # max. 10 cloud layers detected
-    base_m = init_nan_array((10, len_time))  # max. 10 cloud layers detected
-    thickness = init_nan_array((10, len_time))
-
-    for i in range(0, len_time):
-
-        in_cloud = 0
-        layer_idx = 0
-        current_base = np.nan
-
-        # logger.info("    Searching for cloud bottom and top ({} of {}) time steps".format(i + 1, len_time), end="\r")
-
-        # found the first base in first bin.
-        if not np.isnan(dbz_m[0, i]):
-            layer_idx = 1
-            current_base = 1
-            in_cloud = 1
-
-        for j in range(1, len_range):
-
-            if in_cloud == 1:  # if in cloud
-
-                # cloud top found at (j-1)
-                if np.isnan(dbz_m[j, i]):
-                    current_top = j - 1
-                    thickness[layer_idx, i] = range_v[current_top] - range_v[current_base]
-                    bases[layer_idx, i] = current_base  # bases is an idx
-                    tops[layer_idx, i] = current_top  # tops is an idx
-
-                    base_m[layer_idx, i] = range_v[current_base]  # cloud base in m or km
-                    top_m[layer_idx, i] = range_v[current_top]  # cloud top in m or km
-
-                    logger.info(str(i) + ': found ' + str(layer_idx) + '. cloud [' + str(bases[layer_idx, i]) + ', ' +
-                                str(tops[layer_idx, i]) + '], thickness: ' + str(thickness) + 'km')
-
-                    in_cloud = 0
-
-            else:  # if not in cloud
-
-                # cloud_base found at j
-                if not np.isnan(dbz_m[j, i]):
-                    layer_idx += 1
-                    current_base = j
-                    in_cloud = 1
-
-        # at top height but still in cloud, force top
-        if in_cloud == 1:
-            tops[layer_idx, i] = len(range_v)
-            top_m[layer_idx, i] = max(range_v)  # cloud top in m or km
-
-    ###
-    # keep only first 10 cloud layers
-    bases = bases[:10, :]
-    tops = tops[:10, :]
-    base_m = base_m[:10, :]
-    top_m = top_m[:10, :]
-    thickness = thickness[:10, :]
-    # give clear sky flag when first base_m ==NaN (no dbz detected over all heights),
-    # problem: what if radar wasn't working, then dbz would still be NaN!
-    loc_nan = np.where(np.isnan(base_m[0, :]))
-
-    base_m[0, np.where(np.isnan(base_m[0, :]))] = -1
-    top_m[0, np.where(np.isnan(top_m[0, :]))] = -1
-
-    return bases, tops, base_m, top_m, thickness
-
-
 def wrapper(mat_data, **kwargs):
     """Wrap a larda container around .mat file data to use the pyLARDA.Transformations library .
 
@@ -400,7 +318,11 @@ def wrapper(mat_data, **kwargs):
 
     dt_list = [datenum2datetime(dn) for dn in mat_data[time_var]]
     time = [h.dt_to_ts(dt) for dt in dt_list]
-    var = mat_data[var_name].T
+    if var_name == 'bsc_NN_ts' and 'var_converter' in kwargs and kwargs['var_converter'] == 'log':
+        var = np.ma.masked_invalid(mat_data[var_name].T)
+        var = np.ma.power(10.0, var)
+    else:
+        var = mat_data[var_name].T
     var_lims = kwargs['var_lims'] if 'var_lims' in kwargs else [np.nanmin(var), np.nanmax(var)]
 
     if len(var.shape) == 2:
@@ -431,6 +353,9 @@ def cdr2ldr(cdr):
     cdr = np.array(cdr)
     return np.power(10.0, cdr) / (2 + np.power(10.0, cdr))
 
+def ldr2cdr(ldr):
+    ldr = np.array(ldr)
+    return np.ma.log10(-2*ldr/(ldr-1))/(np.log10(2)+np.log10(5))
 
 def add_boxes(ax, boxes, **kwargs):
     """ Routine for adding boxes to an existing axis"""
@@ -443,7 +368,7 @@ def add_boxes(ax, boxes, **kwargs):
     linestyles = ['-', '--', '-.', ':', '--']
     for i, (i_box_name, i_box_val) in enumerate(boxes.items()):
         if i_box_name is not 'linear':
-            width, height = cdr2ldr(i_box_val['dpl']), -2.5 - i_box_val['bsc']
+            width, height = i_box_val['dpl'], -2.5 - i_box_val['bsc']
             rect = Rectangle((0, i_box_val['bsc']), width, height,
                              facecolor='None', linestyle=linestyles[i], edgecolor=edgecolors[i], clip_on=False, label=i_box_name)
             threshold_boxes.append(rect)
@@ -498,7 +423,7 @@ def remove_cloud_edges(mask, n=3):
     """
     This function returns the 2D binary mask of an array shrunk by n pixels.
     Args:
-        mask (array) : where True and False corresponds to masked value, i.e. no signal, and False = a non masked value, i.e. signal respectively
+        mask (numpy.array) : where True and False corresponds to masked value, i.e. no signal, and False = a non masked value, i.e. signal respectively
         n (int) : number by which the mask is shrunk, default: 3
 
     Returns:
@@ -510,21 +435,23 @@ def remove_cloud_edges(mask, n=3):
     for irow in range(n, mask.shape[0] - n):
         arr[irow:irow + n, mask[irow, :] < mask[irow + 1, :]] = True
         arr[irow - n:irow, mask[irow, :] > mask[irow + 1, :]] = True
-    idx_first_rg = np.where(mask[:, 0] == False)
-    idx_last_rg = np.where(mask[:, -1] == False)
-    arr[idx_first_rg, :n] = True
-    arr[idx_last_rg, :n]  = True
+    #arr[np.where(mask[:, 0] == False), :n] = True       # left boarder
+    #arr[np.where(mask[:, -1] == False), :-n] = True     # right boarder
     # column-wise operation
     for icol in range(n, mask.shape[1] - n):
         arr[mask[:, icol] < mask[:, icol + 1], icol:icol + n] = True
         arr[mask[:, icol] > mask[:, icol + 1], icol - n:icol] = True
-    idx_first = np.where(mask[0, :] == False)
-    idx_last = np.where(mask[-1, :] == False)
-    arr[:n, idx_first] = True
-    arr[:n, idx_last]  = True
+    #arr[:n, np.where(mask[0, :] == False)] = True       # upper boarder
+    #arr[:-n, np.where(mask[-1, :] == False)] = True     # lower boarder
 
     mask[arr] = True
     return mask
+
+def get_nan_mask(arr):
+    mask = np.full(arr.shape, False)
+    mask[arr >= 0.0] = True
+    return mask
+
 
 def find_bases_tops(mask, rg_list):
     """

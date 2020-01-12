@@ -1,4 +1,5 @@
 ﻿begin_dt,end_dt,h0,hend,cloudtype,notes,extra
+20141102130000,20141102203000,0,12,?,?,?
 20141005000000,20141030015000,0,12,?,?,?
 20141005000000,20141005015000,0,11,MPC +  DRIZ +  LLLC +  CIR,DRIZ cloud with CT at 5km ALT +  target class. vert. stripes ,no reliable LWP
 20141005060000,20141005100000,0,11,LLLC +  STRAT,thick LLLC below 2km + SCL in cloud above?,no reliable LWP

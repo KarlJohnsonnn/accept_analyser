@@ -24,9 +24,9 @@ import pyLARDA.spec2mom_limrad94 as s2m
 from utility import *
 
 import tkinter
-import matplotlib
+#import matplotlib
 import matplotlib.pyplot as plt
-matplotlib.use('TkAgg')
+#matplotlib.use('TkAgg')
 
 __author__ = "Willi Schimmel"
 __copyright__ = "Copyright 2020, ACCEPT Field Campaign Analyser"
@@ -52,7 +52,7 @@ __status__ = "Prototype"
 
 cases_csv = 'accept_cases.csv'
 
-cases = 0 # the list of cases you want to analyze
+cases = 1 # the list of cases you want to analyze
 
 #BASE_DIR = '/media/sdig/LACROS/cloudnet/data/accept/matfiles/timeseries/'      # workstation path
 BASE_DIR = '/Users/willi/data/MeteoData/ACCEPT/timeseries/'     # path to timeseries/ folder
@@ -80,23 +80,26 @@ exclude_below_ceilo_cb = True
 # remove x seconds after last rain flag
 exclude_wet_radome_lwp = 20     # number of time steps excluded after precipitation (1 = 30sec)
 
-# {'wrm', 'scl', 'both'} ... exclude all pixel except those including {warm droplets, 'super cooled droplets', 'both warm and super cooled droplets'}
+# {'wrm', 'scl', 'both', 'all'} ...
+# exclude all pixel except those including {warm droplets, 'super cooled droplets', 'both warm and super cooled droplets', 'include all classes'}
 exclude_all_but = 'both'
 
 # {one element of isotherm_list} ... exclude all pixels below this temperature
 exclude_below_temperature = -38.0
 
 # number of bins that wont be considered as signal
-exclude_cloud_edge_bins = 2
+exclude_cloud_edge_bins = 0
 
 # threshold for relative humidity, liquid only possible for values greater than  X %
 relhum_threshold = 80.0
 
 plot_size_2D = [10, 8]
+Ndpi = 200
 plot_target_classification    = True
 plot_liquid_pixel_masks       = True
 plot_cloudnet_radar_moments   = True
 plot_cloudnet_lidar_variables = True
+plot_predicted_lidar_variables= True
 plot_cloudnet_mwr_lwp         = True
 plot_scatter_depol_bsc        = True
 plot_FoO                      = True
@@ -122,7 +125,7 @@ if __name__ == '__main__':
     cloudnet_dt    = np.array([datenum2datetime(ts) for ts in cloudnet_dn])
     cloudnet_rg    = classification_tot['h_class'].reshape((n_tot_rg_class,))
 
-    for case in case_list[:1]:
+    for case in case_list[cases:cases+1]:
         # if case['notes'] == 'ex': continue  # exclude this case and check the next one
 
         begin_dt, end_dt = case['begin_dt'], case['end_dt']
@@ -181,15 +184,19 @@ if __name__ == '__main__':
 
         # assuming this works with nan values
         # span = number of data points used for smoothing of NN BSC + depol before liquid mask creation; here: 5 profiles at 30s resolution = 2.5min
-        if rgN > span_smoo_NNout:
+        if rgN > span_smoo_NNout > 0:
             for iH in range(rgN):
                 hsrl_pred['bsc_NN_ts'][iH, :]  = h.smooth(hsrl_pred['bsc_NN_ts'][iH, :], span_smoo_NNout)
                 hsrl_pred['CDR_NN_ts'][iH, :]  = h.smooth(hsrl_pred['CDR_NN_ts'][iH, :], span_smoo_NNout)
                 hsrl_pred['dpol_NN_ts'][iH, :] = h.smooth(hsrl_pred['dpol_NN_ts'][iH, :], span_smoo_NNout)
 
         # number of data points (profiles) used for smoothing time series data of MWR-LWP and predicted liquid layer thickness;
-        if tsN > span_smoo_MWRlwp:
-            categorization.update({'lwp_ts_smoothed': h.smooth(categorization['lwp_ts'], span_smoo_MWRlwp)})
+        if tsN > span_smoo_MWRlwp > 0:
+            categorization.update({'lwp_ts_smoothed': np.ma.masked_less_equal(h.smooth(categorization['lwp_ts'], span_smoo_MWRlwp), 0.0)})
+
+        _ = np.ma.masked_invalid(categorization[f"lwp_ts{ts_smth}"])
+        categorization.update({'ts_lwp_mask': ~np.ma.getmask(_)})
+
 
         """ 
         categories: see cloudnet target classification 1 = cloud droplets only, ..., 10 = aerosol + insects
@@ -213,55 +220,60 @@ if __name__ == '__main__':
                          'anydrizzle': categories[2].any(axis=0),
                          'rg0drizzle': categories[2][0, :].copy()}
 
+        # exclude a number of time steps after precipitation (wet radome)
+        if exclude_wet_radome_lwp > 0:
+            for iT in range(tsN-exclude_wet_radome_lwp, -1, -1):
+                if rain_flag[exclude_drizzle][iT] == 1:
+                    categorization['ts_lwp_mask'][iT:iT+exclude_wet_radome_lwp] = False
+
         # plotting outside of the lidar threshold loop
         logger.info('')
         logger.info('Plotting radar moments, lidar variables, lwp, etc.:')
         if plot_cloudnet_radar_moments:
 
-            Ze_larda = wrapper(categorization, var_name='Ze_cc_ts', var_unit='dBZ', var_lims=[-60, 20])
-
             # plot the cloud contours minus 2 pixel around the clouds
-            cloud_contour = remove_cloud_edges(Ze_larda['mask'] * 1, n=2)
-            cloud_contour = s2m.despeckle(cloud_contour * 1, 80)
-            cbct_list, cbct_mask = find_bases_tops(cloud_contour, Ze_larda['rg'])
+            liq_contour = remove_cloud_edges((~cloudnet_liq_mask).T * 1, n=2)
+            liq_contour = s2m.despeckle(liq_contour * 1, 80)
+            cbct_list, cbct_mask = find_bases_tops(liq_contour, rg_case)
 
             fig_name = f'CN-radar-0-Ze_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT.png'
-            fig, ax  = tr.plot_timeheight(Ze_larda, range_interval=case['plot_range'], fig_size=plot_size_2D, contour=contour)
-            ax.contour(dt_case, rg_case, cbct_mask.T, linestyles='-', colors='black', linewidths=1.75)
-            fig.savefig(fig_name)
+            fig, ax = tr.plot_timeheight(wrapper(categorization, var_name='Ze_cc_ts', var_unit='dBZ', var_lims=[-60, 20]),
+                                         range_interval=case['plot_range'], fig_size=plot_size_2D, contour=contour)
+            ax.contour(dt_case, rg_case, liq_contour.T, linestyles='-', colors='black', linewidths=1.75)
+            fig.savefig(fig_name, dpi=Ndpi)
             logger.info(f'Figure saved :: {fig_name}')
 
             fig_name = f'CN-radar-1-VEL_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT.png'
             fig, _ = tr.plot_timeheight(wrapper(categorization, var_name='Vd_cc_ts', var_unit='m s-1', var_lims=[-4, 2]),
                                         range_interval=case['plot_range'], fig_size=plot_size_2D, contour=contour)
-            fig.savefig(fig_name)
+            fig.savefig(fig_name, dpi=Ndpi)
             logger.info(f'Figure saved :: {fig_name}')
 
             fig_name = f'CN-radar-2-sw_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT.png'
             fig, _ = tr.plot_timeheight(wrapper(categorization, var_name='width_cc_ts', var_unit='m s-1', var_lims=[0, 2]),
                                         range_interval=case['plot_range'], fig_size=plot_size_2D, contour=contour)
-            fig.savefig(fig_name)
+            fig.savefig(fig_name, dpi=Ndpi)
             logger.info(f'Figure saved :: {fig_name}')
 
             fig_name = f'CN-radar-X-ldr_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT.png'
             fig, _ = tr.plot_timeheight(wrapper(categorization, var_name='ldr_cc_ts', var_unit='dB', var_lims=[-30, 0]),
                                         range_interval=case['plot_range'], fig_size=plot_size_2D, contour=contour)
-            fig.savefig(fig_name)
+            fig.savefig(fig_name, dpi=Ndpi)
             logger.info(f'Figure saved :: {fig_name}')
         if plot_cloudnet_lidar_variables:
             fig_name = f'CN-lidar-bsc_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT.png'
             fig, _ = tr.plot_timeheight(wrapper(categorization, var_name='att_bscatt_ts', var_unit='m-1 sr-1', var_lims=[1.e-7, 1.e-4]),
                                         range_interval=case['plot_range'], fig_size=plot_size_2D, var_converter='log', contour=contour)
-            fig.savefig(fig_name)
+            fig.savefig(fig_name, dpi=Ndpi)
             logger.info(f'Figure saved :: {fig_name}')
         if plot_target_classification:
             fig_name = f'CLASS_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT.png'
             fig, _ = tr.plot_timeheight(wrapper(classification, var_name='target_class_ts', var_unit='-'),
                                         range_interval=case['plot_range'], fig_size=plot_size_2D, contour=contour)
-            fig.savefig(fig_name)
+            fig.savefig(fig_name, dpi=Ndpi)
             logger.info(f'Figure saved :: {fig_name}')
         if plot_scatter_depol_bsc:
-            titlestring = f'FoO predicted depol vs. attbsc -- ACCEPT\ndate: {begin_dt:%Y-%m-%d};   {begin_dt:%H:%M:%S} - {end_dt:%H:%M:%S} [UTC]'
+            titlestring = f'FoO >-CN-mask-< predicted depol vs. attbsc -- ACCEPT\ndate: {begin_dt:%Y-%m-%d};   {begin_dt:%H:%M:%S} - {end_dt:%H:%M:%S} [UTC]'
             pred_bsc = wrapper(hsrl_pred, var_name='bsc_NN_ts', var_unit='log(sr-1 m-1)')
             pred_dpl = wrapper(hsrl_pred, var_name='dpol_NN_ts', var_unit='1')
 
@@ -272,7 +284,7 @@ if __name__ == '__main__':
             fig, ax = tr.plot_scatter(pred_dpl, pred_bsc, fig_size=[8, 8], x_lim=[0, 0.3], y_lim=[-6, -2.5], title=titlestring, colorbar=True)
             ax      = add_boxes(ax, lidar_thresh_dict, **{'size': 15, 'weight': 'semibold'})
             fig_name = f'FoO-ANN-dpl-vs-bsc_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT.png'
-            fig.savefig(fig_name)
+            fig.savefig(fig_name, dpi=Ndpi)
             logger.info(f'Figure saved :: {fig_name}')
 
 
@@ -294,20 +306,18 @@ if __name__ == '__main__':
                         if np.isnan(hsrl_pred['dpol_NN_ts'][irg, its]):
                             continue
                         idx_nearest = h.argnearest(bsc_yaxis, hsrl_pred['bsc_NN_ts'][irg, its])
-
                         if hsrl_pred['bsc_NN_ts'][irg, its] > bsc_yaxis[idx_nearest] and hsrl_pred['dpol_NN_ts'][irg, its] < dpl_xaxis[idx_nearest]:
                             ann_liquid_mask[irg, its] = True
 
-                logger.info(f'Threshold for liquid classification: {ithresh_name} '
-                            f'with slope = {ithresh_val["slope"]:.2f} and intersection = '
+                logger.info(f'Threshold for liquid classification: {ithresh_name} with slope = {ithresh_val["slope"]:.2f} and intersection = '
                             f'{ithresh_val["intersection"]:.2f}\n')
             else:
                 with np.errstate(invalid='ignore'):
-                    ann_liquid_mask[np.logical_and((hsrl_pred['bsc_NN_ts'] > ithresh_val['bsc']),
-                                                   (hsrl_pred['CDR_NN_ts'] < ithresh_val['dpl']))] = True
-                logger.info(f'Threshold for liquid classification: {ithresh_name} '
-                            f'with bsc > {ithresh_val["bsc"]:.2e} and '
-                            f'depol > {ithresh_val["dpl"]:.2e}\n')
+                    ann_liquid_mask[np.logical_and((hsrl_pred['bsc_NN_ts'] > ithresh_val['bsc']), (hsrl_pred['dpol_NN_ts'] < ithresh_val['dpl']))] = True
+                logger.info(f'Threshold for liquid classification: {ithresh_name} ')
+                logger.info(f'  - att. bsc.       > {ithresh_val["bsc"]:.2e}')
+                logger.info(f'  - circ. depol     < {ldr2cdr(ithresh_val["dpl"]):.2e}')
+                logger.info(f'  - lin. vol. depol < {ithresh_val["dpl"]:.2e}\n')
 
             # initialize combined (range, time) liquid mask, containing all detected liquid pixels
             combi_liq_mask = {'tot': get_combined_liquid_mask(ann_liquid_mask, cloudnet_liq_mask)}
@@ -344,9 +354,11 @@ if __name__ == '__main__':
                 ann_liquid_mask[combi_liq_mask[f'{int(exclude_below_temperature)}degC'] == 0] = False
                 cloudnet_liq_mask[combi_liq_mask[f'{int(exclude_below_temperature)}degC'] == 0] = False
 
+            # remove the outer N layers arround a cloud
             if exclude_cloud_edge_bins > 0:
-                ann_liquid_mask = remove_cloud_edges(ann_liquid_mask * 1, n=exclude_cloud_edge_bins)
-                cloudnet_liq_mask = remove_cloud_edges(cloudnet_liq_mask * 1, n=exclude_cloud_edge_bins)
+                ann_liquid_mask = s2m.despeckle(remove_cloud_edges(ann_liquid_mask * 1, n=exclude_cloud_edge_bins) * 1, 80)
+                cloudnet_liq_mask = s2m.despeckle(remove_cloud_edges(cloudnet_liq_mask * 1, n=exclude_cloud_edge_bins) * 1, 80)
+
             """ ____ ___  ___  _ ___ _ ____ _  _ ____ _       _ _  _ ____ ____ ____ _  _ ____ ___ _ ____ _  _ 
                 |__| |  \ |  \ |  |  | |  | |\ | |__| |       | |\ | |___ |  | |__/ |\/| |__|  |  | |  | |\ | 
                 |  | |__/ |__/ |  |  | |__| | \| |  | |___    | | \| |    |__| |  \ |  | |  |  |  | |__| | \| 
@@ -369,11 +381,19 @@ if __name__ == '__main__':
             logger.info(f'overlapping pxl where ONLY NN predicts liquid       : {combi_mask_counts[2] * 100 / tot_nnz:.2f} %')
             logger.info(f'overlapping pxl where ONLY Cloudnet detected liquid : {combi_mask_counts[3] * 100 / tot_nnz:.2f} %\n')
 
-            categorization[f"lwp_ts{ts_smth}"] = np.ma.masked_invalid(categorization[f"lwp_ts{ts_smth}"])
-            corr_coefs = {f'lwp-cn{ts_smth}': np.ma.corrcoef(categorization[f"lwp_ts{ts_smth}"], sum_ll_thickness[f"cloudnet{ts_smth}"]),
-                          f'lwp-nn{ts_smth}': np.ma.corrcoef(categorization[f"lwp_ts{ts_smth}"], sum_ll_thickness[f"neuralnet{ts_smth}"])}
-            logger.info(f'correlation between MWR-LWP{ts_smth} and Cloudnet ll-thickness{ts_smth}  : {corr_coefs[f"lwp-cn{ts_smth}"][0,1]:.2f}')
-            logger.info(f'correlation between MWR-LWP{ts_smth} and Neuralnet ll-thickness{ts_smth} : {corr_coefs[f"lwp-nn{ts_smth}"][0,1]:.2f}\n')
+            joined_lwp_llt_cn = np.logical_and(categorization['ts_lwp_mask'], sum_ll_thickness[f"cloudnet{ts_smth}"] > 0.0)
+            joined_lwp_llt_nn = np.logical_and(categorization['ts_lwp_mask'], sum_ll_thickness[f"neuralnet{ts_smth}"] > 0.0)
+
+            if exclude_drizzle in ['disdro', 'anydrizzle', 'rg0drizzle'] and exclude_wet_radome_lwp > 0:
+                joined_lwp_llt_cn[rain_flag[exclude_drizzle]] = False
+                joined_lwp_llt_nn[rain_flag[exclude_drizzle]] = False
+
+            corr_coefs = {f'lwp-cn{ts_smth}': np.ma.corrcoef(categorization[f"lwp_ts{ts_smth}"][joined_lwp_llt_cn],
+                                                             sum_ll_thickness[f"cloudnet{ts_smth}"][joined_lwp_llt_cn]),
+                          f'lwp-nn{ts_smth}': np.ma.corrcoef(categorization[f"lwp_ts{ts_smth}"][joined_lwp_llt_nn],
+                                                             sum_ll_thickness[f"neuralnet{ts_smth}"][joined_lwp_llt_nn])}
+            logger.info(f'correlation between MWR-LWP{ts_smth} and Cloudnet ll-thickness{ts_smth}  : {corr_coefs[f"lwp-cn{ts_smth}"][0, 1]:.2f}')
+            logger.info(f'correlation between MWR-LWP{ts_smth} and Neuralnet ll-thickness{ts_smth} : {corr_coefs[f"lwp-nn{ts_smth}"][0, 1]:.2f}\n')
 
             # calculate the percentage of pixels within of xx% humidity regions
             if do_read_sounding:
@@ -382,8 +402,8 @@ if __name__ == '__main__':
                 radiosondes.update({'ts_avbl_mask': radiosondes['nonzero_mask'].any(axis=0)})
                 with np.errstate(invalid='ignore'):
                     radiosondes.update({'abv_thresh_mask': np.logical_and(radiosondes['rh_rs_ts_masked'] > relhum_threshold, radiosondes['nonzero_mask'])})
-                idx_tot_cn_rs = np.argwhere(cloudnet_liq_mask[:, radiosondes['ts_avbl_mask']])
-                idx_tot_nn_rs = np.argwhere(cloudnet_liq_mask[:, radiosondes['ts_avbl_mask']])
+                idx_tot_cn_rs = np.argwhere(cloudnet_liq_mask)
+                idx_tot_nn_rs = np.argwhere(ann_liquid_mask)
                 perc_overlapp_cn = calc_overlapp_supersat_liquidmask(radiosondes, cloudnet_liq_mask)
                 perc_overlapp_nn = calc_overlapp_supersat_liquidmask(radiosondes, ann_liquid_mask)
 
@@ -392,28 +412,47 @@ if __name__ == '__main__':
 
                 if plot_relhum_liqpxl_overlapp:
                     fig_name = f'LIQ-RS-cn-{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT_{ithresh_name}.png'
-                    fig, ax = tr.plot_timeheight(wrapper(radiosondes, var_name='rh_rs_ts', var_unit='%'), title=fig_name, zlim=[relhum_threshold, 100.],
+                    fig_title = f'Radio sonde (asc. time +-30 min) relative humidity  VS  Cloudnet liquid mask\ndate:   {begin_dt:%Y-%m-%d %H:%M:%S}' \
+                                f' till {end_dt:%Y-%m-%d %H:%M:%S} -\n- ACCEPT - thresh: {ithresh_name}, perc. overlapp = {perc_overlapp_cn:.2f}%'
+                    fig, ax = tr.plot_timeheight(wrapper(radiosondes, var_name='rh_rs_ts', var_unit='%'), title=fig_title, zlim=[relhum_threshold, 100.],
                                                  range_interval=case['plot_range'], fig_size=plot_size_2D, contour=contour)
                     ax.scatter(dt_case[idx_tot_cn_rs[:, 1]], rg_case[idx_tot_cn_rs[:, 0]], cmap='gray', alpha=0.5)
-                    fig.savefig(fig_name)
+                    fig.savefig(fig_name, dpi=Ndpi)
                     logger.info(f'Figure saved :: {fig_name}')
 
                     fig_name = f'LIQ-RS-nn-{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT_{ithresh_name}.png'
-                    fig, ax = tr.plot_timeheight(wrapper(radiosondes, var_name='rh_rs_ts', var_unit='%'), title=fig_name, zlim=[relhum_threshold, 100.],
+                    fig_title = f'Radio sonde (asc. time +-30 min) relative humidity  VS  ANN liquid mask\ndate:   {begin_dt:%Y-%m-%d %H:%M:%S}' \
+                                f' till {end_dt:%Y-%m-%d %H:%M:%S} -\n- ACCEPT - thresh: {ithresh_name}, perc. overlapp = {perc_overlapp_nn:.2f}%'
+                    fig, ax = tr.plot_timeheight(wrapper(radiosondes, var_name='rh_rs_ts', var_unit='%'), title=fig_title, zlim=[relhum_threshold, 100.],
                                                  range_interval=case['plot_range'], fig_size=plot_size_2D, contour=contour)
                     ax.scatter(dt_case[idx_tot_nn_rs[:, 1]], rg_case[idx_tot_nn_rs[:, 0]], cmap='gray', alpha=0.5)
-                    fig.savefig(fig_name)
+                    fig.savefig(fig_name, dpi=Ndpi)
                     logger.info(f'Figure saved :: {fig_name}')
                     dummy = 5
 
             # plotting inside the lidar threshold loop
+            if plot_predicted_lidar_variables:
+
+                fig_name = f'NN-hsrl-bsc_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT_{ithresh_name}.png'
+                fig, ax = tr.plot_timeheight(wrapper(hsrl_pred, var_name='bsc_NN_ts', var_unit='m-1 sr-1', var_lims=[1.e-7, 1.e-4], var_converter='log'),
+                                            range_interval=case['plot_range'], fig_size=plot_size_2D, var_converter='log', contour=contour)
+                ax.contour(dt_case, rg_case, ann_liquid_mask, linestyles='-', colors='black', linewidths=1.75)
+                fig.savefig(fig_name, dpi=Ndpi)
+                logger.info(f'Figure saved :: {fig_name}')
+
+                fig_name = f'NN-hsrl-dpl_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT_{ithresh_name}.png'
+                fig, ax = tr.plot_timeheight(wrapper(hsrl_pred, var_name='dpol_NN_ts', var_unit='1', var_lims=[0.0, 0.2]),
+                                            range_interval=case['plot_range'], fig_size=plot_size_2D, contour=contour)
+                ax.contour(dt_case, rg_case, ann_liquid_mask, linestyles='-', colors='black', linewidths=1.75)
+                fig.savefig(fig_name, dpi=Ndpi)
+                logger.info(f'Figure saved :: {fig_name}')
             if plot_liquid_pixel_masks:
                 fig_name = f'LIQ-MASK_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT_{ithresh_name}.png'
                 classification.update({'combi_liq_mask': combi_liq_mask[f'{int(exclude_below_temperature)}degC']})
                 fig, ax = tr.plot_timeheight(wrapper(classification, var_name='combi_liq_mask', var_unit='-'), title=fig_name,
                                             range_interval=case['plot_range'], fig_size=plot_size_2D, contour=contour)
 
-                fig.savefig(fig_name)
+                fig.savefig(fig_name, dpi=Ndpi)
                 logger.info(f'Figure saved :: {fig_name}')
             if plot_FoO:
                 # plot every combination of variabels against each other, except var1 == var2
@@ -429,7 +468,7 @@ if __name__ == '__main__':
 
                         fig, ax = tr.plot_scatter(x_var, y_var, fig_size=[8, 8], x_lim=x_info[1], y_lim=y_info[1], title=titlestring, colorbar=True)
                         fig_name = f'FoO-{ithresh_name}-{x_varname}-vs-{y_varname}_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT.png'
-                        fig.savefig(fig_name)
+                        fig.savefig(fig_name, dpi=Ndpi)
                         logger.info(f'Figure saved :: {fig_name}')
             if plot_cloudnet_mwr_lwp:
                 fig_name = f'CN-mwr-lwp-{ithresh_name}_{begin_dt:%Y%m%d%H%M%S}-{end_dt:%Y%m%d%H%M%S}_ACCEPT.png'
@@ -446,7 +485,7 @@ if __name__ == '__main__':
                 ax.text(0.4, .85, corr_coef_str, horizontalalignment='left', transform=ax.transAxes, fontsize=15,
                         bbox=dict(facecolor='white', alpha=0.75))
                 plt.show()
-                fig.savefig(fig_name)
+                fig.savefig(fig_name, dpi=Ndpi)
                 logger.info(f'Figure saved :: {fig_name}')
 
     dummy = 5
