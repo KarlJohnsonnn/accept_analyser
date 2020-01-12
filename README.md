@@ -1,4 +1,4 @@
-# list your desired cases in the accept_casses.csv
+# list cases in the accept_cases.csv file
 ## header
 begin_dt,end_dt,h0,hend,cloudtype,notes,extra
 ## format
