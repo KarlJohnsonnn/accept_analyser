@@ -82,7 +82,7 @@ exclude_wet_radome_lwp = 20     # number of time steps excluded after precipitat
 
 # {'wrm', 'scl', 'both', 'all'} ...
 # exclude all pixel except those including {warm droplets, 'super cooled droplets', 'both warm and super cooled droplets', 'include all classes'}
-exclude_all_but = 'both'
+exclude_all_but = 'scl'
 
 # {one element of isotherm_list} ... exclude all pixels below this temperature
 exclude_below_temperature = -38.0
